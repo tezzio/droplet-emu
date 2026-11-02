@@ -94,15 +94,49 @@ Directory** in the list); Droplet finds every game folder inside it.
 
 ## Building
 
-Droplet builds like Eden; [docs/Build.md](docs/Build.md) is the full guide, including Windows. On
-Linux:
+Droplet builds like Eden, and [docs/Build.md](docs/Build.md) is the full guide. Below are the short
+versions for Linux and Windows. [docs/Deps.md](docs/Deps.md) lists the packages for other systems,
+including Gentoo, Alpine, Void, NixOS, macOS and the BSDs.
 
-1. Install the tools and libraries for your distribution from [docs/Deps.md](docs/Deps.md). On Arch
-   Linux and distributions based on it:
+Whatever the system, the build needs three options:
+- `-DENABLE_WERROR=OFF` keeps compiler warnings from stopping the build. Droplet's own changes still
+  trigger some warnings that Eden treats as errors.
+- `-DENABLE_WEB_SERVICE=OFF` leaves out Eden's web services (telemetry and the public room list),
+  which Droplet doesn't use.
+- `-DYUZU_TESTS=OFF` skips the unit tests.
+
+The first configure downloads a few libraries that Droplet builds in. They stay in `.cache/cpm`.
+
+### Linux
+
+1. Install the tools and libraries for your distribution:
+
+   <details>
+   <summary>Arch Linux and distributions based on it</summary>
 
    ```sh
    sudo pacman -Syu --needed base-devel boost catch2 cmake enet ffmpeg fmt git glslang libzip lz4 ninja nlohmann-json openssl opus qt6-base qt6-multimedia qt6-charts sdl3 zlib zstd zip unzip vulkan-headers vulkan-utility-libraries libusb spirv-tools spirv-headers
    ```
+
+   </details>
+
+   <details>
+   <summary>Ubuntu, Debian and Mint (Ubuntu 26.04, Mint 22.3, Debian 13 or later)</summary>
+
+   ```sh
+   sudo apt-get install autoconf cmake g++ gcc git glslang-tools libglu1-mesa-dev libhidapi-dev libpulse-dev libtool libudev-dev libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 libxcb-xinerama0 libxcb-xkb1 libxext-dev libxkbcommon-x11-0 mesa-common-dev nasm ninja-build qt6-base-private-dev catch2 libfmt-dev liblz4-dev nlohmann-json3-dev libzstd-dev libssl-dev libavfilter-dev libavcodec-dev libswscale-dev pkg-config zlib1g-dev libva-dev libvdpau-dev qt6-tools-dev qt6-charts-dev libvulkan-dev spirv-tools spirv-headers libusb-1.0-0-dev libxbyak-dev libboost-dev libboost-fiber-dev libboost-context-dev libsdl3-dev libopus-dev libasound2t64 vulkan-utility-libraries-dev
+   ```
+
+   </details>
+
+   <details>
+   <summary>Fedora (needs <a href="https://rpmfusion.org/Configuration">RPM Fusion</a> for ffmpeg-devel)</summary>
+
+   ```sh
+   sudo dnf install autoconf cmake fmt-devel gcc{,-c++} glslang hidapi-devel json-devel libtool libusb1-devel libzstd-devel lz4-devel nasm ninja-build openssl-devel pulseaudio-libs-devel qt6-linguist qt6-qtbase{-private,}-devel qt6-qtwebengine-devel qt6-qtmultimedia-devel qt6-charts-devel speexdsp-devel wayland-devel zlib-devel ffmpeg-devel libXext-devel boost jq
+   ```
+
+   </details>
 
 2. Get the source and build it:
 
@@ -113,14 +147,33 @@ Linux:
    cmake --build build
    ```
 
-   The first configure downloads a few libraries that Droplet builds in; they stay in `.cache/cpm`.
-   `-DENABLE_WERROR=OFF` keeps compiler warnings from stopping the build: Droplet's own changes still
-   trigger some of the warnings that Eden treats as errors. `-DENABLE_WEB_SERVICE=OFF` leaves out
-   Eden's web services (telemetry and the public room list), which Droplet doesn't use, and
-   `-DYUZU_TESTS=OFF` skips the unit tests.
-
 3. Start `build/bin/eden` (the windowed app) or `build/bin/eden-cli` (the command-line app), and
    open a game as described in [Running games](#running-games).
+
+### Windows
+
+1. Install [MSYS2](https://www.msys2.org/) and open its **MSYS2 MinGW 64-bit** shell (`mingw64.exe`).
+2. Install the tools and libraries:
+
+   ```sh
+   BASE="git make autoconf libtool automake-wrapper jq patch"
+   MINGW="qt6-base qt6-charts qt6-tools qt6-translations qt6-svg cmake toolchain clang python-pip openssl vulkan-memory-allocator vulkan-devel glslang boost fmt lz4 nlohmann-json zlib zstd enet opus libusb openssl SDL3"
+   packages="$BASE"
+   for pkg in $MINGW; do packages="$packages mingw-w64-x86_64-$pkg"; done
+   pacman -Syuu --needed --noconfirm $packages
+   ```
+
+3. Get the source and build it, in the same shell:
+
+   ```sh
+   git clone -b main https://gitlab.com/seighttt/droplet.git
+   cd droplet
+   cmake -S . -B build -G "MSYS Makefiles" -DCMAKE_BUILD_TYPE=Release -DENABLE_WERROR=OFF -DENABLE_WEB_SERVICE=OFF -DYUZU_TESTS=OFF
+   cmake --build build --parallel
+   ```
+
+4. Start `build/bin/eden.exe` or `build/bin/eden-cli.exe` from that shell, which has the libraries
+   they need on its path.
 
 This tree has no Android frontend yet.
 
