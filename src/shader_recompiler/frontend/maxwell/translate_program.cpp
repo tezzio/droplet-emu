@@ -112,6 +112,9 @@ void AddNVNStorageBuffers(IR::Program& program) {
             return 0x510u;
         case Stage::Compute:
             return 0x310u;
+        case Stage::Task:
+        case Stage::Mesh:
+            break;
         }
         throw InvalidArgument("Invalid stage {}", program.stage);
     }()};

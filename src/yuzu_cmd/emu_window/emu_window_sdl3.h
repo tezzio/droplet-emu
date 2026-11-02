@@ -123,4 +123,7 @@ protected:
     Core::System& system;
 };
 
+// Seconds since the first frame; shared by the key script (yuzu.cpp) and key recording.
+double Nx2KeyClockSeconds();
+
 class DummyContext : public Core::Frontend::GraphicsContext {};

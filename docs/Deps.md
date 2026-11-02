@@ -180,7 +180,7 @@ sudo apt-get install autoconf cmake g++ gcc git glslang-tools libglu1-mesa-dev l
 Fedora:
 
 ```sh
-sudo dnf install autoconf cmake fmt-devel gcc{,-c++} glslang hidapi-devel json-devel libtool libusb1-devel libzstd-devel lz4-devel nasm ninja-build openssl-devel pulseaudio-libs-devel qt6-linguist qt6-qtbase{-private,}-devel qt6-qtwebengine-devel qt6-qtmultimedia-devel qt6-charts-devel speexdsp-devel wayland-devel zlib-devel ffmpeg-devel libXext-devel boost jq
+sudo dnf install autoconf cmake fmt-devel gcc{,-c++} glslang hidapi-devel json-devel libtool libusb1-devel libzstd-devel lz4-devel nasm ninja-build openssl-devel pulseaudio-libs-devel qt6-linguist qt6-qtbase{-private,}-devel qt6-qtmultimedia-devel qt6-qtcharts-devel speexdsp-devel wayland-devel zlib-devel ffmpeg-devel libXext-devel boost jq git vulkan-utility-libraries-devel SDL3-devel
 ```
 
 AlmaLinux (use `YUZU_USE_CPM=ON`):

@@ -141,7 +141,6 @@ void EmuWindow_SDL3::OnFingerUp() {
     input_subsystem->GetTouchScreen()->ReleaseAllTouch();
 }
 
-// Seconds since the first frame; shared by the key script (yuzu.cpp) and key recording.
 double Nx2KeyClockSeconds() {
     static const auto begin = std::chrono::steady_clock::now();
     return std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count();

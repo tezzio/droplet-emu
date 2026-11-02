@@ -133,7 +133,7 @@ The first configure downloads a few libraries that Droplet builds in. They stay 
    <summary>Fedora (needs <a href="https://rpmfusion.org/Configuration">RPM Fusion</a> for ffmpeg-devel)</summary>
 
    ```sh
-   sudo dnf install autoconf cmake fmt-devel gcc{,-c++} glslang hidapi-devel json-devel libtool libusb1-devel libzstd-devel lz4-devel nasm ninja-build openssl-devel pulseaudio-libs-devel qt6-linguist qt6-qtbase{-private,}-devel qt6-qtwebengine-devel qt6-qtmultimedia-devel qt6-charts-devel speexdsp-devel wayland-devel zlib-devel ffmpeg-devel libXext-devel boost jq
+   sudo dnf install autoconf cmake fmt-devel gcc{,-c++} glslang hidapi-devel json-devel libtool libusb1-devel libzstd-devel lz4-devel nasm ninja-build openssl-devel pulseaudio-libs-devel qt6-linguist qt6-qtbase{-private,}-devel qt6-qtmultimedia-devel qt6-qtcharts-devel speexdsp-devel wayland-devel zlib-devel ffmpeg-devel libXext-devel boost jq git vulkan-utility-libraries-devel SDL3-devel
    ```
 
    </details>

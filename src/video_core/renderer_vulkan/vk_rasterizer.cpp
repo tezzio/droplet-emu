@@ -551,8 +551,8 @@ void RasterizerVulkan::Draw(bool is_indexed, u32 instance_count) {
             if (static const bool trace = std::getenv("EDEN_NX2_MESH_TRACE") != nullptr; trace) {
                 static u64 draws{}, groups{};
                 groups += draw_params.num_vertices;
-                if ((++draws & (draws - 1)) == 0) {
-                    LOG_INFO(Render_Vulkan, "Mesh draws: {} ({} workgroups)", draws, groups);
+                if (const u64 n = ++draws; (n & (n - 1)) == 0) {
+                    LOG_INFO(Render_Vulkan, "Mesh draws: {} ({} workgroups)", n, groups);
                 }
             }
             return;
