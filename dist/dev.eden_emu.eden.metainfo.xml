@@ -14,9 +14,9 @@ SPDX-License-Identifier: CC0-1.0
   <id>dev.eden_emu.eden</id>
   <metadata_license>CC0-1.0</metadata_license>
   <name>Droplet</name>
-  <summary>Nintendo Switch emulator</summary>
+  <summary>Nintendo Switch 2 emulator</summary>
   <description>
-    <p>Eden is a free and open-source (FOSS) Switch 1 emulator started by developer Camille LaVey. Written in C++, with builds for Windows, Linux, macOS, Android, FreeBSD and more.</p>
+    <p>Droplet is an experimental Nintendo Switch 2 emulator for Linux and Windows. It is a modified version of eden-nx2, which brings Switch 2 support to the Eden emulator.</p>
   </description>
   <categories>
     <category>Game</category>
@@ -26,15 +26,11 @@ SPDX-License-Identifier: CC0-1.0
     <keyword>switch</keyword>
     <keyword>emulator</keyword>
   </keywords>
-  <url type="homepage">https://eden-emu.dev/</url>
-  <url type="bugtracker">https://git.eden-emu.dev/eden-emu/eden/issues</url>
-  <url type="faq">https://eden-emu.dev/about</url>
-  <url type="help">https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/README.md</url>
-  <url type="donation">https://liberapay.com/crueter</url>
-  <url type="translate">https://explore.transifex.com/edenemu/eden-emulator</url>
-  <url type="contact">https://discord.gg/HstXbPch7X</url>
-  <url type="vcs-browser">https://git.eden-emu.dev</url>
-  <url type="contribute">https://git.eden-emu.dev/eden-emu/eden</url>
+  <url type="homepage">https://gitlab.com/seighttt/droplet</url>
+  <url type="bugtracker">https://gitlab.com/seighttt/droplet/-/issues</url>
+  <url type="help">https://gitlab.com/seighttt/droplet/-/blob/main/README.md</url>
+  <url type="vcs-browser">https://gitlab.com/seighttt/droplet</url>
+  <url type="contribute">https://gitlab.com/seighttt/droplet/-/blob/main/CONTRIBUTING.md</url>
   <launchable type="desktop-id">dev.eden_emu.eden.desktop</launchable>
   <provides>
     <binary>yuzu</binary>
@@ -53,6 +49,5 @@ SPDX-License-Identifier: CC0-1.0
     <memory>16384</memory>
   </recommends>
   <project_license>GPL-3.0-or-later</project_license>
-  <developer_name>Eden Emulator Team</developer_name>
   <content_rating type="oars-1.0"/>
 </component>

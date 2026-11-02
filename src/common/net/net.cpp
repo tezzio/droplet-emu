@@ -267,6 +267,9 @@ std::vector<Release> GetReleases() {
 }
 
 std::optional<Release> GetLatestRelease() {
+    if (Common::g_build_auto_update_api[0] == '\0') {
+        return std::nullopt; // no update server is set
+    }
     const auto releases_path =  Common::g_build_auto_update_api_path;
     const auto url = fmt::format("https://{}", Common::g_build_auto_update_api);
 
@@ -281,6 +284,9 @@ std::optional<Release> GetLatestRelease() {
 }
 
 std::optional<std::string> GetReleasesBody() {
+    if (Common::g_build_auto_update_stable_api[0] == '\0') {
+        return std::nullopt; // no release server is set
+    }
     const auto releases_path =
         fmt::format("/{}/{}/releases", Common::g_build_auto_update_stable_api_path,
                     Common::g_build_auto_update_stable_repo);

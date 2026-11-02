@@ -94,8 +94,35 @@ Directory** in the list); Droplet finds every game folder inside it.
 
 ## Building
 
-See [docs/Build.md](docs/Build.md). The windowed app is built with `-DENABLE_QT=ON` (`bin/eden`); the
-command-line app is `bin/eden-cli`. This tree has no Android frontend yet.
+Droplet builds like Eden; [docs/Build.md](docs/Build.md) is the full guide, including Windows. On
+Linux:
+
+1. Install the tools and libraries for your distribution from [docs/Deps.md](docs/Deps.md). On Arch
+   Linux and distributions based on it:
+
+   ```sh
+   sudo pacman -Syu --needed base-devel boost catch2 cmake enet ffmpeg fmt git glslang libzip lz4 ninja nlohmann-json openssl opus qt6-base qt6-multimedia qt6-charts sdl3 zlib zstd zip unzip vulkan-headers vulkan-utility-libraries libusb spirv-tools spirv-headers
+   ```
+
+2. Get the source and build it:
+
+   ```sh
+   git clone -b main https://gitlab.com/seighttt/droplet.git
+   cd droplet
+   cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_WERROR=OFF -DENABLE_WEB_SERVICE=OFF -DYUZU_TESTS=OFF
+   cmake --build build
+   ```
+
+   The first configure downloads a few libraries that Droplet builds in; they stay in `.cache/cpm`.
+   `-DENABLE_WERROR=OFF` keeps compiler warnings from stopping the build: Droplet's own changes still
+   trigger some of the warnings that Eden treats as errors. `-DENABLE_WEB_SERVICE=OFF` leaves out
+   Eden's web services (telemetry and the public room list), which Droplet doesn't use, and
+   `-DYUZU_TESTS=OFF` skips the unit tests.
+
+3. Start `build/bin/eden` (the windowed app) or `build/bin/eden-cli` (the command-line app), and
+   open a game as described in [Running games](#running-games).
+
+This tree has no Android frontend yet.
 
 ## License
 

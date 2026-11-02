@@ -1585,7 +1585,6 @@ void MainWindow::ConnectMenuEvents() {
     // Emulation
     connect_menu(ui->action_Pause, &MainWindow::OnPauseContinueGame);
     connect_menu(ui->action_Stop, &MainWindow::OnStopGame);
-    connect_menu(ui->action_Open_Mods_Page, &MainWindow::OnOpenModsPage);
     connect_menu(ui->action_Open_UserHandbook, &MainWindow::OnOpenUserHandbook);
     connect_menu(ui->action_Restart, &MainWindow::OnRestartGame);
     connect_menu(ui->action_Configure, &MainWindow::OnConfigure);
@@ -1857,9 +1856,8 @@ bool MainWindow::LoadROM(const QString& filename, Service::AM::FrontendAppletPar
             QMessageBox::critical(
                 this, tr("An error occurred initializing the video core."),
                 tr("This is usually caused by outdated GPU drivers. "
-                   "Please see the log for more details. See: "
-                   "<a href='https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/HowToAccessLogs.md'>"
-                   "How to access log files</a>."));
+                   "Please see the log for more details: File > Open Droplet Folders > "
+                   "Log Folder."));
             break;
         default:
             if (result > Core::SystemResultStatus::ErrorLoader) {
@@ -3038,12 +3036,8 @@ void MainWindow::OpenURL(const QUrl& url) {
     }
 }
 
-void MainWindow::OnOpenModsPage() {
-    OpenURL(QUrl(QStringLiteral("https://github.com/eden-emulator/yuzu-mod-archive")));
-}
-
 void MainWindow::OnOpenUserHandbook() {
-    OpenURL(QUrl(QStringLiteral("https://git.eden-emu.dev/eden-emu/eden/src/branch/master/docs/user/README.md")));
+    OpenURL(QUrl(QStringLiteral("https://gitlab.com/seighttt/droplet/-/blob/main/README.md#running-games")));
 }
 
 void MainWindow::ToggleFullscreen() {

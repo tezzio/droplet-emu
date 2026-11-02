@@ -459,6 +459,13 @@ std::vector<u8> BuildMsgpack(std::string_view title, std::string_view body,
 void EnsureBuiltinNewsLoaded() {
     static std::once_flag once;
     std::call_once(once, [] {
+        // No release server is set (Droplet has none, see GenerateSCMRev.cmake): show no news
+        // rather than Eden's releases, and never go online for it (the default logos come from
+        // Eden's site too).
+        if (Common::g_build_auto_update_stable_api[0] == '\0') {
+            return;
+        }
+
         LoadDefaultLogos();
 
         if (const auto cached = ReadCachedJson()) {
