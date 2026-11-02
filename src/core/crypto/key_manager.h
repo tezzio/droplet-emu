@@ -1,0 +1,251 @@
+// SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+// SPDX-FileCopyrightText: Copyright 2018 yuzu Emulator Project
+// SPDX-License-Identifier: GPL-2.0-or-later
+
+#pragma once
+
+#include <array>
+#include <filesystem>
+#include <map>
+#include <optional>
+#include <span>
+#include <string>
+
+#include <variant>
+#include <fmt/ranges.h>
+#include "common/common_funcs.h"
+#include "common/common_types.h"
+#include "core/file_sys/vfs/vfs_types.h"
+
+namespace Core::Crypto {
+
+using Key128 = std::array<u8, 0x10>;
+using Key256 = std::array<u8, 0x20>;
+using SHA256Hash = std::array<u8, 0x20>;
+
+enum class SignatureType {
+    RSA_4096_SHA1 = 0x10000,
+    RSA_2048_SHA1 = 0x10001,
+    ECDSA_SHA1 = 0x10002,
+    RSA_4096_SHA256 = 0x10003,
+    RSA_2048_SHA256 = 0x10004,
+    ECDSA_SHA256 = 0x10005,
+};
+
+u64 GetSignatureTypeDataSize(SignatureType type);
+u64 GetSignatureTypePaddingSize(SignatureType type);
+
+enum class TitleKeyType : u8 {
+    Common = 0,
+    Personalized = 1,
+};
+
+struct TicketData {
+    std::array<u8, 0x40> issuer;
+    union {
+        std::array<u8, 0x100> title_key_block;
+
+        struct {
+            Key128 title_key_common;
+            std::array<u8, 0xF0> title_key_common_pad;
+        };
+    };
+
+    INSERT_PADDING_BYTES(0x1);
+    TitleKeyType type;
+    INSERT_PADDING_BYTES(0x3);
+    u8 revision;
+    INSERT_PADDING_BYTES(0xA);
+    u64 ticket_id;
+    u64 device_id;
+    std::array<u8, 0x10> rights_id;
+    u32 account_id;
+    INSERT_PADDING_BYTES(0x14C);
+};
+static_assert(sizeof(TicketData) == 0x2C0, "TicketData has incorrect size.");
+
+struct RSA4096Ticket {
+    SignatureType sig_type;
+    std::array<u8, 0x200> sig_data;
+    INSERT_PADDING_BYTES(0x3C);
+    TicketData data;
+};
+static_assert(sizeof(RSA4096Ticket) == 0x500, "RSA4096Ticket has incorrect size.");
+
+struct RSA2048Ticket {
+    SignatureType sig_type;
+    std::array<u8, 0x100> sig_data;
+    INSERT_PADDING_BYTES(0x3C);
+    TicketData data;
+};
+static_assert(sizeof(RSA2048Ticket) == 0x400, "RSA2048Ticket has incorrect size.");
+
+struct ECDSATicket {
+    SignatureType sig_type;
+    std::array<u8, 0x3C> sig_data;
+    INSERT_PADDING_BYTES(0x40);
+    TicketData data;
+};
+static_assert(sizeof(ECDSATicket) == 0x340, "ECDSATicket has incorrect size.");
+
+struct Ticket {
+    std::variant<std::monostate, RSA4096Ticket, RSA2048Ticket, ECDSATicket> data;
+
+    [[nodiscard]] bool IsValid() const;
+    [[nodiscard]] SignatureType GetSignatureType() const;
+    [[nodiscard]] TicketData& GetData();
+    [[nodiscard]] const TicketData& GetData() const;
+    [[nodiscard]] u64 GetSize() const;
+
+    /**
+     * Synthesizes a common ticket given a title key and rights ID.
+     *
+     * @param title_key Title key to store in the ticket.
+     * @param rights_id Rights ID the ticket is for.
+     * @return The synthesized common ticket.
+     */
+    static Ticket SynthesizeCommon(Key128 title_key, const std::array<u8, 0x10>& rights_id);
+
+    /**
+     * Reads a ticket from a file.
+     *
+     * @param file File to read the ticket from.
+     * @return The read ticket. If the ticket data is invalid, Ticket::IsValid() will be false.
+     */
+    static Ticket Read(const FileSys::VirtualFile& file);
+
+    /**
+     * Reads a ticket from a memory buffer.
+     *
+     * @param raw_data Buffer to read the ticket from.
+     * @return The read ticket. If the ticket data is invalid, Ticket::IsValid() will be false.
+     */
+    static Ticket Read(std::span<const u8> raw_data);
+};
+
+static_assert(sizeof(Key128) == 16, "Key128 must be 128 bytes big.");
+static_assert(sizeof(Key256) == 32, "Key256 must be 256 bytes big.");
+
+enum class S256KeyType : u64 {
+    SDKey,        // f1=SDKeyType
+    Header,       //
+    SDKeySource,  // f1=SDKeyType
+    HeaderSource, //
+};
+
+enum class S128KeyType : u64 {
+    Master,        // f1=crypto revision
+    Package1,      // f1=crypto revision
+    Package2,      // f1=crypto revision
+    Titlekek,      // f1=crypto revision
+    ETicketRSAKek, //
+    KeyArea,       // f1=crypto revision f2=type {app, ocean, system}
+    SDSeed,        //
+    Titlekey,      // f1=rights id LSB f2=rights id MSB
+    Source,        // f1=source type, f2= sub id
+    Keyblob,       // f1=crypto revision
+    KeyblobMAC,    // f1=crypto revision
+    TSEC,          //
+    SecureBoot,    //
+    BIS,           // f1=partition (0-3), f2=type {crypt, tweak}
+    HeaderKek,     //
+    SDKek,         //
+    RSAKek,        //
+};
+
+enum class KeyAreaKeyType : u8 {
+    Application,
+    Ocean,
+    System,
+};
+
+enum class SourceKeyType : u8 {
+    SDKek,                //
+    AESKekGeneration,     //
+    AESKeyGeneration,     //
+    RSAOaepKekGeneration, //
+    Master,               //
+    Keyblob,              // f2=crypto revision
+    KeyAreaKey,           // f2=KeyAreaKeyType
+    Titlekek,             //
+    Package2,             //
+    HeaderKek,            //
+    KeyblobMAC,           //
+    ETicketKek,           //
+    ETicketKekek,         //
+};
+
+enum class SDKeyType : u8 {
+    Save,
+    NCA,
+};
+
+enum class BISKeyType : u8 {
+    Crypto,
+    Tweak,
+};
+
+enum class RSAKekType : u8 {
+    Mask0,
+    Seed3,
+};
+
+template <typename KeyType>
+struct KeyIndex {
+    KeyType type;
+    u64 field1;
+    u64 field2;
+
+    std::string DebugInfo() const {
+        u8 key_size = 16;
+        if constexpr (std::is_same_v<KeyType, S256KeyType>)
+            key_size = 32;
+        return fmt::format("key_size={:02X}, key={:02X}, field1={:016X}, field2={:016X}", key_size,
+                           static_cast<u8>(type), field1, field2);
+    }
+};
+
+// boost flat_map requires operator< for O(log(n)) lookups.
+template <typename KeyType>
+bool operator<(const KeyIndex<KeyType>& lhs, const KeyIndex<KeyType>& rhs) {
+    return std::tie(lhs.type, lhs.field1, lhs.field2) < std::tie(rhs.type, rhs.field1, rhs.field2);
+}
+
+class KeyManager {
+public:
+    static KeyManager& Instance() {
+        static KeyManager instance;
+        return instance;
+    }
+
+    KeyManager(const KeyManager&) = delete;
+    KeyManager& operator=(const KeyManager&) = delete;
+
+    KeyManager(KeyManager&&) = delete;
+    KeyManager& operator=(KeyManager&&) = delete;
+
+    bool HasKey(S128KeyType id, u64 field1 = 0, u64 field2 = 0) const;
+    bool HasKey(S256KeyType id, u64 field1 = 0, u64 field2 = 0) const;
+
+    Key128 GetKey(S128KeyType id, u64 field1 = 0, u64 field2 = 0) const;
+    Key256 GetKey(S256KeyType id, u64 field1 = 0, u64 field2 = 0) const;
+
+    Key256 GetBISKey(u8 partition_id) const;
+
+    const std::map<u128, Ticket>& GetCommonTickets() const;
+    const std::map<u128, Ticket>& GetPersonalizedTickets() const;
+
+private:
+    KeyManager();
+
+    std::map<KeyIndex<S128KeyType>, Key128> s128_keys;
+    std::map<KeyIndex<S256KeyType>, Key256> s256_keys;
+
+    // Map from rights ID to ticket
+    std::map<u128, Ticket> common_tickets;
+    std::map<u128, Ticket> personal_tickets;
+};
+
+} // namespace Core::Crypto
