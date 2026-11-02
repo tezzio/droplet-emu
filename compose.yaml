@@ -1,0 +1,65 @@
+# Reservoir with Docker Compose (see README.md):
+#   docker compose up -d                       the server; pages on http://127.0.0.1:8090/ here
+#   docker compose --profile https up -d       plus HTTPS for the pages at RESERVOIR_DOMAIN (.env)
+#   docker compose exec reservoir reservoir set-admin-password
+name: reservoir
+
+services:
+  reservoir:
+    build: .
+    image: reservoir:local
+    restart: unless-stopped
+    environment:
+      RESERVOIR_NAME: ${RESERVOIR_NAME:-Reservoir}
+      # The https service below: its X-Forwarded-For names the real visitor
+      RESERVOIR_TRUST_PROXY: 172.30.0.10/32
+    volumes:
+      - data:/data
+    ports:
+      - "8443:8443/tcp"         # the game server (gRPC over TLS)
+      - "3478:3478/tcp"         # ICE
+      - "3478:3478/udp"
+      - "3479:3479/tcp"
+      - "3479:3479/udp"
+      - "10025:10025/udp"       # Pia's NAT check
+      - "10125:10125/udp"
+      - "33334:33334/udp"
+      - "34343:34343/udp"       # Pia's connection-quality reports
+      - "127.0.0.1:8090:8090"   # status page and admin panel, on this machine only
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - reservoir
+
+  https:
+    image: caddy:2-alpine
+    profiles:
+      - https
+    restart: unless-stopped
+    environment:
+      RESERVOIR_DOMAIN: ${RESERVOIR_DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - reservoir
+    networks:
+      reservoir:
+        ipv4_address: 172.30.0.10
+
+networks:
+  reservoir:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  data:
+  caddy-data:
+  caddy-config:

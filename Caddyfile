@@ -1,0 +1,10 @@
+# HTTPS for Reservoir's status page and admin panel (compose.yaml's https profile). Caddy gets
+# and renews the certificate on its own; RESERVOIR_DOMAIN comes from .env.
+{$RESERVOIR_DOMAIN} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy reservoir:8090
+}
