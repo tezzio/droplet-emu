@@ -256,7 +256,8 @@ cmake_dependent_option(ENABLE_LIBUSB "Enable the use of LibUSB" ON "WIN32 OR LIN
 cmake_dependent_option(ENABLE_OPENGL "Enable OpenGL" ON "NOT (WIN32 AND ARCHITECTURE_arm64) AND NOT APPLE AND NOT ANDROID" OFF)
 mark_as_advanced(FORCE ENABLE_OPENGL)
 
-option(ENABLE_WEB_SERVICE "Enable web services (telemetry, etc.)" ON)
+# Off for Droplet: Eden's web services (public room lobby, accounts) are Eden's, not Droplet's
+option(ENABLE_WEB_SERVICE "Enable web services (telemetry, etc.)" OFF)
 option(ENABLE_WIFI_SCAN "Enable WiFi scanning" OFF)
 
 cmake_dependent_option(USE_DISCORD_PRESENCE "Enables Discord Rich Presence" OFF "ENABLE_QT" OFF)
@@ -276,7 +277,7 @@ option(NIGHTLY_BUILD "Use Nightly qualifiers in the update checker and build met
 cmake_dependent_option(YUZU_ROOM "Enable dedicated room functionality" ON "NOT ANDROID" OFF)
 cmake_dependent_option(YUZU_ROOM_STANDALONE "Enable standalone room executable" ON "YUZU_ROOM" OFF)
 
-cmake_dependent_option(YUZU_CMD "Compile the eden-cli executable" ON "NOT ANDROID" OFF)
+cmake_dependent_option(YUZU_CMD "Compile the droplet-cli executable" ON "NOT ANDROID" OFF)
 
 cmake_dependent_option(YUZU_CRASH_DUMPS "Compile crash dump (Minidump) support" OFF "WIN32 OR LINUX" OFF)
 

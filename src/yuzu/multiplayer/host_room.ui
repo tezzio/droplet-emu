@@ -178,20 +178,6 @@
       </spacer>
      </item>
      <item>
-      <widget class="QComboBox" name="host_type">
-       <item>
-        <property name="text">
-         <string>Public</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Unlisted</string>
-        </property>
-       </item>
-      </widget>
-     </item>
-     <item>
       <widget class="QPushButton" name="host">
        <property name="text">
         <string>Host Room</string>

@@ -660,7 +660,7 @@ struct Values {
                                                      Category::RendererHacks, Specialization::Default,
                                                      true, true};
 
-    // A translucent "experimental prototype" notice in the middle of the picture (F10 in eden-cli).
+    // A translucent "experimental prototype" notice in the middle of the picture (F10 in droplet-cli).
     Setting<bool> show_watermark{linkage, true, "show_watermark", Category::Renderer};
 
     SwitchableSetting<bool> emulate_bgr565{linkage, false, "emulate_bgr565",

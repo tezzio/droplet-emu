@@ -89,7 +89,7 @@ void SdlConfig::ReadSdlControlValues() {
     }
     ReadDebugControlValues();
     ReadHidbusValues();
-    // Not a saved setting in the Qt frontend (a hotkey toggles it); eden-cli has no menu for it.
+    // Not a saved setting in the Qt frontend (a hotkey toggles it); droplet-cli has no menu for it.
     Settings::values.mouse_panning = ReadBooleanSetting("mouse_panning", std::make_optional(false));
 
     EndGroup();

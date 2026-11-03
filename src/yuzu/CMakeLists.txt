@@ -180,10 +180,6 @@ add_executable(yuzu
     multiplayer/host_room.cpp
     multiplayer/host_room.h
     multiplayer/host_room.ui
-    multiplayer/lobby.cpp
-    multiplayer/lobby.h
-    multiplayer/lobby.ui
-    multiplayer/lobby_p.h
     multiplayer/message.cpp
     multiplayer/message.h
     multiplayer/moderation_dialog.cpp
@@ -237,7 +233,7 @@ add_executable(yuzu
     game/carousel.h game/carousel.cpp
 )
 
-set_target_properties(yuzu PROPERTIES OUTPUT_NAME "eden")
+set_target_properties(yuzu PROPERTIES OUTPUT_NAME "droplet")
 
 if (YUZU_CRASH_DUMPS)
     target_sources(yuzu PRIVATE
@@ -431,7 +427,7 @@ endif()
 
 if (WIN32 AND NOT YUZU_USE_BUNDLED_QT)
     set(YUZU_EXE_DIR "$<TARGET_FILE_DIR:yuzu>")
-    add_custom_command(TARGET yuzu POST_BUILD COMMAND ${WINDEPLOYQT_EXECUTABLE} "${YUZU_EXE_DIR}/eden.exe" --dir "${YUZU_EXE_DIR}" --libdir "${YUZU_EXE_DIR}" --plugindir "${YUZU_EXE_DIR}/plugins" --no-compiler-runtime --no-opengl-sw --no-system-d3d-compiler --no-translations --verbose 0)
+    add_custom_command(TARGET yuzu POST_BUILD COMMAND ${WINDEPLOYQT_EXECUTABLE} "${YUZU_EXE_DIR}/droplet.exe" --dir "${YUZU_EXE_DIR}" --libdir "${YUZU_EXE_DIR}" --plugindir "${YUZU_EXE_DIR}/plugins" --no-compiler-runtime --no-opengl-sw --no-system-d3d-compiler --no-translations --verbose 0)
 endif()
 
 if (ARCHITECTURE_x86_64 OR ARCHITECTURE_arm64)

@@ -1379,7 +1379,6 @@ void MainWindow::InitializeHotkeys() {
     LinkActionShortcut(ui->action_TAS_Start, QStringLiteral("TAS Start/Stop"), true);
     LinkActionShortcut(ui->action_TAS_Record, QStringLiteral("TAS Record"), true);
     LinkActionShortcut(ui->action_TAS_Reset, QStringLiteral("TAS Reset"), true);
-    LinkActionShortcut(ui->action_View_Lobby, QStringLiteral("Browse Public Game Lobby"));
     LinkActionShortcut(ui->action_Start_Room, QStringLiteral("Create Room"));
     LinkActionShortcut(ui->action_Connect_To_Room, QStringLiteral("Direct Connect to Room"));
     LinkActionShortcut(ui->action_Show_Room, QStringLiteral("Show Current Room"));
@@ -1643,9 +1642,11 @@ void MainWindow::ConnectMenuEvents() {
     ui->action_Show_Game_Name->setChecked(UISettings::values.show_game_name.GetValue());
     connect(ui->action_Show_Game_Name, &QAction::triggered, this, &MainWindow::ToggleShowGameName);
 
-    // Multiplayer
-    connect(ui->action_View_Lobby, &QAction::triggered, multiplayer_state,
-            &MultiplayerState::OnViewLobby);
+    // Multiplayer: Droplet's online play settings, then rooms (LAN play between emulators)
+    connect(ui->action_Online_Settings, &QAction::triggered, this, [this] {
+        configure_network_first = true;
+        OnConfigure();
+    });
     connect(ui->action_Start_Room, &QAction::triggered, multiplayer_state,
             &MultiplayerState::OnCreateRoom);
     connect(ui->action_Leave_Room, &QAction::triggered, multiplayer_state,
@@ -3273,8 +3274,7 @@ void MainWindow::OnConfigure() {
 
     Settings::SetConfiguringGlobal(true);
     ConfigureDialog configure_dialog(this, hotkey_registry, input_subsystem.get(),
-                                     vk_device_records, *QtCommon::system,
-                                     !multiplayer_state->IsHostingPublicRoom());
+                                     vk_device_records, *QtCommon::system);
     connect(&configure_dialog, &ConfigureDialog::LanguageChanged, this,
             &MainWindow::OnLanguageChanged);
     if (std::exchange(configure_network_first, false)) {
@@ -3340,10 +3340,6 @@ void MainWindow::OnConfigure() {
         GraphicsBackend::SetForceX11(UISettings::values.gui_force_x11.GetValue());
     }
 #endif
-
-    if (!multiplayer_state->IsHostingPublicRoom()) {
-        multiplayer_state->UpdateCredentials();
-    }
 
     emit UpdateThemedIcons();
 

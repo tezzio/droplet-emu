@@ -33,8 +33,8 @@ SPDX-License-Identifier: CC0-1.0
   <url type="contribute">https://gitlab.com/seighttt/droplet/-/blob/main/CONTRIBUTING.md</url>
   <launchable type="desktop-id">dev.eden_emu.eden.desktop</launchable>
   <provides>
-    <binary>yuzu</binary>
-    <binary>yuzu-cmd</binary>
+    <binary>droplet</binary>
+    <binary>droplet-cli</binary>
   </provides>
   <supports>
     <control>pointing</control>

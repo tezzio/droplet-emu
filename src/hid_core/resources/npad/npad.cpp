@@ -144,7 +144,7 @@ void NPad::FreeAppletResourceId(u64 aruid) {
 }
 
 void NPad::ControllerUpdate(Kernel::KernelCore& kernel, Core::HID::ControllerTriggerType type, std::size_t controller_idx) {
-    // A controller can change (eden-cli maps a game controller onto player 1 on its first frame)
+    // A controller can change (droplet-cli maps a game controller onto player 1 on its first frame)
     // before the HID service exists; it reads every controller's state when it starts.
     if (applet_resource_holder.applet_resource == nullptr) {
         return;

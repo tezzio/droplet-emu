@@ -13,7 +13,7 @@ ErrorApplet::~ErrorApplet() = default;
 
 void DefaultErrorApplet::Close() const {}
 
-// Frontends without a dialog (eden-cli) log the error and dismiss it at once; the game waited
+// Frontends without a dialog (droplet-cli) log the error and dismiss it at once; the game waited
 // forever for a dismissal that never came.
 void DefaultErrorApplet::ShowError(Result error, FinishedCallback finished) const {
     LOG_CRITICAL(Service_Fatal, "Application requested error display: {:04}-{:04} (raw={:08X})",

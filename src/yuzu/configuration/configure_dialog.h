@@ -52,7 +52,7 @@ public:
     explicit ConfigureDialog(QWidget* parent, HotkeyRegistry& registry_,
                              InputCommon::InputSubsystem* input_subsystem,
                              std::vector<VkDeviceInfo::Record>& vk_device_records,
-                             Core::System& system_, bool enable_web_config = true);
+                             Core::System& system_);
     ~ConfigureDialog() override;
 
     void ApplyConfiguration();

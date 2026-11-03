@@ -16,7 +16,6 @@
 #include "yuzu/multiplayer/client_room.h"
 #include "yuzu/multiplayer/direct_connect.h"
 #include "yuzu/multiplayer/host_room.h"
-#include "yuzu/multiplayer/lobby.h"
 #include "yuzu/multiplayer/message.h"
 #include "yuzu/multiplayer/state.h"
 #include "yuzu/util/clickable_label.h"
@@ -38,11 +37,6 @@ MultiplayerState::MultiplayerState(QWidget* parent, QStandardItemModel* game_lis
 
     qRegisterMetaType<Network::RoomMember::State>();
     qRegisterMetaType<Network::RoomMember::Error>();
-    qRegisterMetaType<WebService::WebResult>();
-    announce_multiplayer_session = std::make_shared<Core::AnnounceMultiplayerSession>();
-    announce_multiplayer_session->BindErrorCallback(
-        [this](const WebService::WebResult& result) { emit AnnounceFailed(result); });
-    connect(this, &MultiplayerState::AnnounceFailed, this, &MultiplayerState::OnAnnounceFailed);
 
     status_text = new ClickableLabel(this);
     status_icon = new ClickableLabel(this);
@@ -83,9 +77,6 @@ void MultiplayerState::Close() {
     if (client_room) {
         client_room->close();
     }
-    if (lobby) {
-        lobby->close();
-    }
 }
 
 void MultiplayerState::retranslateUi() {
@@ -93,9 +84,6 @@ void MultiplayerState::retranslateUi() {
 
     UpdateNotificationStatus();
 
-    if (lobby) {
-        lobby->RetranslateUi();
-    }
     if (host_room) {
         host_room->RetranslateUi();
     }
@@ -116,7 +104,7 @@ void MultiplayerState::UpdateNotificationStatus() {
     switch (notification_status) {
     case NotificationStatus::Uninitialized:
         status_icon->setPixmap(QIcon::fromTheme(QStringLiteral("disconnected")).pixmap(16));
-        status_text->setText(tr("Not Connected. Click here to find a room!"));
+        status_text->setText(tr("Not Connected. Click here to join a room."));
         leave_room->setEnabled(false);
         show_room->setEnabled(false);
         break;
@@ -204,15 +192,6 @@ void MultiplayerState::OnNetworkError(const Network::RoomMember::Error& error) {
     }
 }
 
-void MultiplayerState::OnAnnounceFailed(const WebService::WebResult& result) {
-    announce_multiplayer_session->Stop();
-    QMessageBox::warning(this, tr("Error"),
-                         tr("Failed to update the room information. Please check your Internet "
-                            "connection and try hosting the room again.\nDebug Message: ") +
-                             QString::fromStdString(result.result_string),
-                         QMessageBox::Ok);
-}
-
 void MultiplayerState::OnSaveConfig() {
     emit SaveConfig();
 }
@@ -238,18 +217,9 @@ static void BringWidgetToFront(QWidget* widget) {
     widget->raise();
 }
 
-void MultiplayerState::OnViewLobby() {
-    if (lobby == nullptr) {
-        lobby = new Lobby(this, game_list_model, announce_multiplayer_session, system);
-        connect(lobby, &Lobby::SaveConfig, this, &MultiplayerState::OnSaveConfig);
-    }
-    lobby->RefreshLobby();
-    BringWidgetToFront(lobby);
-}
-
 void MultiplayerState::OnCreateRoom() {
     if (host_room == nullptr) {
-        host_room = new HostRoomWindow(this, game_list_model, announce_multiplayer_session, system);
+        host_room = new HostRoomWindow(this, game_list_model, system);
         connect(host_room, &HostRoomWindow::SaveConfig, this, &MultiplayerState::OnSaveConfig);
     }
     BringWidgetToFront(host_room);
@@ -273,7 +243,6 @@ bool MultiplayerState::OnCloseRoom() {
         UISettings::values.multiplayer_ban_list = room->GetBanList();
 
         room->Destroy();
-        announce_multiplayer_session->Stop();
         LOG_DEBUG(Frontend, "Closed the room (as a server)");
     }
     return true;
@@ -305,9 +274,9 @@ void MultiplayerState::OnOpenNetworkRoom() {
             return;
         }
     }
-    // If the user is not a member of a room, show the lobby instead.
-    // This is currently only used on the clickable label in the status bar
-    OnViewLobby();
+    // Not in a room (only from the status bar label): Droplet has no public lobby to show, so
+    // offer to join one by address
+    OnDirectConnectToRoom();
 }
 
 void MultiplayerState::OnDirectConnectToRoom() {
@@ -319,19 +288,8 @@ void MultiplayerState::OnDirectConnectToRoom() {
     BringWidgetToFront(direct_connect);
 }
 
-bool MultiplayerState::IsHostingPublicRoom() const {
-    return announce_multiplayer_session->IsRunning();
-}
-
-void MultiplayerState::UpdateCredentials() {
-    announce_multiplayer_session->UpdateCredentials();
-}
-
 void MultiplayerState::UpdateGameList(QStandardItemModel* game_list) {
     game_list_model = game_list;
-    if (lobby) {
-        lobby->UpdateGameList(game_list);
-    }
     if (host_room) {
         host_room->UpdateGameList(game_list);
     }

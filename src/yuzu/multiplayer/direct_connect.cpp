@@ -38,10 +38,6 @@ DirectConnectWindow::DirectConnectWindow(Core::System& system_, QWidget* parent)
     ui->nickname->setValidator(validation.GetNickname());
     ui->nickname->setText(
         QString::fromStdString(UISettings::values.multiplayer_nickname.GetValue()));
-    if (ui->nickname->text().isEmpty() && !Settings::values.eden_username.GetValue().empty()) {
-        // Use yuzu Web Service user name as nickname by default
-        ui->nickname->setText(QString::fromStdString(Settings::values.eden_username.GetValue()));
-    }
     ui->ip->setValidator(validation.GetIP());
     ui->ip->setText(QString::fromStdString(UISettings::values.multiplayer_ip.GetValue()));
     ui->port->setValidator(validation.GetPort());

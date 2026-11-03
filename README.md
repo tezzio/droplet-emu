@@ -70,7 +70,7 @@ be that simple too.
 Droplet runs decrypted games from their folders. Choose **File > Open Game Folder** (Ctrl+O), or
 the **Open Game Folder** button under the game list, and pick the game's folder: the one with its
 `exefs` and `romfs` folders inside. Its `exefs` folder works too, and so does dropping the folder
-onto Droplet's window or giving it to `eden-cli` as the game's path. To keep your games in the
+onto Droplet's window or giving it to `droplet-cli` as the game's path. To keep your games in the
 list, add the folder that holds them (double-click the empty list, or use **Add New Game
 Directory** in the list); Droplet finds every game folder inside it.
 
@@ -79,11 +79,12 @@ Directory** in the list); Droplet finds every game folder inside it.
 - **Online play, emulators only.** Games that use Nintendo's NPLN online platform can play on a
   private [Reservoir](https://gitlab.com/seighttt/droplet/-/tree/server) server: sign-in, friend
   codes (`SW-xxxx-xxxx-xxxx`, which you can change), friends, matchmaking, rooms and room IDs. In
-  Configure > System > Network, turn online play on, enter the server's address and pick its
+  Multiplayer > Online Play Settings, turn online play on, enter the server's address and pick its
   certificate (`ca.der`, from the server's status page). Nothing ever reaches Nintendo's servers.
 - **LAN play.** Mario Kart World has a hidden LAN mode: on the main menu, highlight Wireless Play, hold
   L and R and click the left stick, and it becomes LAN Play. Players on the same network find each
-  other's rooms. Emulators far apart can share one through an emulator room (Multiplayer > Create Room).
+  other's rooms. Emulators far apart can share one through an emulator room: one player hosts it with
+  Multiplayer > Create Room, and the others join with Multiplayer > Direct Connect to Room.
   Playing against a console in LAN mode should work the same way, but has not been tested yet.
 
 ## Known issues
@@ -147,7 +148,7 @@ The first configure downloads a few libraries that Droplet builds in. They stay 
    cmake --build build
    ```
 
-3. Start `build/bin/eden` (the windowed app) or `build/bin/eden-cli` (the command-line app), and
+3. Start `build/bin/droplet` (the windowed app) or `build/bin/droplet-cli` (the command-line app), and
    open a game as described in [Running games](#running-games).
 
 ### Windows
@@ -172,7 +173,7 @@ The first configure downloads a few libraries that Droplet builds in. They stay 
    cmake --build build --parallel
    ```
 
-4. Start `build/bin/eden.exe` or `build/bin/eden-cli.exe` from that shell, which has the libraries
+4. Start `build/bin/droplet.exe` or `build/bin/droplet-cli.exe` from that shell, which has the libraries
    they need on its path.
 
 This tree has no Android frontend yet.

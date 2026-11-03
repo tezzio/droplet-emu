@@ -33,7 +33,7 @@ These options control dependencies.
 
 ### Miscellaneous
 
-- `ENABLE_WEB_SERVICE` (ON) Enable multiplayer service
+- `ENABLE_WEB_SERVICE` (OFF) Enable Eden's web services (public room lobby, accounts), which Droplet doesn't use
 - `ENABLE_WIFI_SCAN` (OFF) Enable WiFi scanning (requires iw on Linux) - experimental
 - `ENABLE_CUBEB` (ON) Enables the cubeb audio backend
   - This option is subject for removal.
@@ -64,7 +64,7 @@ These options control executables and build flavors.
 
 **Desktop only**:
 
-- `YUZU_CMD` (ON) Compile the SDL-based frontend (eden-cli)
+- `YUZU_CMD` (ON) Compile the SDL-based frontend (droplet-cli)
 - `YUZU_ROOM` (OFF) Compile dedicated room functionality into the main executable
 - `YUZU_ROOM_STANDALONE` (OFF) Compile a separate executable for room functionality
 - `YUZU_STATIC_ROOM` (OFF) Compile the room executable *only* as a static, portable executable

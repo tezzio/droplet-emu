@@ -35,7 +35,7 @@
 ConfigureDialog::ConfigureDialog(QWidget* parent, HotkeyRegistry& registry_,
                                  InputCommon::InputSubsystem* input_subsystem,
                                  std::vector<VkDeviceInfo::Record>& vk_device_records,
-                                 Core::System& system_, bool enable_web_config)
+                                 Core::System& system_)
     : QDialog(parent), ui{std::make_unique<Ui::ConfigureDialog>()}, registry(registry_),
       system{system_},
       builder{std::make_unique<ConfigurationShared::Builder>(this, !system_.IsPoweredOn())},
@@ -83,7 +83,6 @@ ConfigureDialog::ConfigureDialog(QWidget* parent, HotkeyRegistry& registry_,
     ui->tabWidget->addTab(ui_tab.get(), tr("Game List"));
     ui->tabWidget->addTab(web_tab.get(), tr("Web"));
 
-    web_tab->SetWebServiceConfigEnabled(enable_web_config);
     hotkeys_tab->Populate(registry);
 
     input_tab->Initialize(input_subsystem);
@@ -174,9 +173,16 @@ void ConfigureDialog::HandleApplyButtonClicked() {
 Q_DECLARE_METATYPE(QList<QWidget*>);
 
 void ConfigureDialog::PopulateSelectionList() {
+    // The Web tab only holds Discord presence (Droplet has no web service)
+#ifdef USE_DISCORD_PRESENCE
+    const QList<QWidget*> general{general_tab.get(), hotkeys_tab.get(), ui_tab.get(),
+                                  web_tab.get(), debug_tab_tab.get()};
+#else
+    const QList<QWidget*> general{general_tab.get(), hotkeys_tab.get(), ui_tab.get(),
+                                  debug_tab_tab.get()};
+#endif
     const std::array<std::pair<QString, QList<QWidget*>>, 6> items{
-        {{tr("General"),
-          {general_tab.get(), hotkeys_tab.get(), ui_tab.get(), web_tab.get(), debug_tab_tab.get()}},
+        {{tr("General"), general},
          {tr("System"),
           {system_tab.get(), profile_tab.get(), network_tab.get(), filesystem_tab.get(),
            applets_tab.get()}},

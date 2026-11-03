@@ -3,7 +3,7 @@
 > [!WARNING]
 > This guide is intended for developers ONLY. If you are not a developer or packager, you are unlikely to receive support.
 
-This is a full-fledged guide to build Droplet on all supported platforms. It comes from Eden, which Droplet is built on, so the build targets and programs keep Eden's names (`eden`, `eden-cli`).
+This is a full-fledged guide to build Droplet on all supported platforms. It comes from Eden, which Droplet is built on, so the build targets keep Eden's names (`yuzu`, `yuzu-cmd`); the programs they make are `droplet` and `droplet-cli`.
 
 If you already have a development environment set up:
 
@@ -182,9 +182,9 @@ cmake --build build
 
 Your compiled executable will be in:
 
-- `build/bin/eden.exe` for Windows,
-- `build/bin/eden.app/Contents/MacOS/eden` for macOS,
-- and `build/bin/eden` for others.
+- `build/bin/droplet.exe` for Windows,
+- `build/bin/droplet.app/Contents/MacOS/droplet` for macOS,
+- and `build/bin/droplet` for others.
 
 ## Scripts
 

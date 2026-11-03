@@ -30,10 +30,10 @@ namespace UISettings {
 // This must be in alphabetical order according to action name as it must have the same order as
 // UISetting::values.shortcuts, which is alphabetically ordered.
 // Droplet: F9 toggles mouse panning (the mouse aims like the gyro) and F10 the watermark, as in
-// eden-cli (KDE takes Ctrl+F9 and Ctrl+F10). The docked and GPU mode switches that had F10 and
+// droplet-cli (KDE takes Ctrl+F9 and Ctrl+F10). The docked and GPU mode switches that had F10 and
 // F9 keep only their controller defaults.
 // clang-format off
-const std::array<Shortcut, 35> default_hotkeys{{
+const std::array<Shortcut, 34> default_hotkeys{{
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Audio Mute/Unmute")).toStdString(),          QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("Ctrl+M"),  std::string("Home+Dpad_Right"), Qt::WindowShortcut, false}},
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Audio Volume Down")).toStdString(),          QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("-"),       std::string("Home+Dpad_Down"), Qt::ApplicationShortcut, true}},
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Audio Volume Up")).toStdString(),            QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("="),       std::string("Home+Dpad_Up"), Qt::ApplicationShortcut, true}},
@@ -50,7 +50,6 @@ const std::array<Shortcut, 35> default_hotkeys{{
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Open File")).toStdString(),                  QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("Ctrl+Shift+O"), std::string(""), Qt::WidgetWithChildrenShortcut, false}},
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Open Game Folder")).toStdString(),           QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("Ctrl+O"),  std::string(""), Qt::WidgetWithChildrenShortcut, false}},
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Load/Remove Amiibo")).toStdString(),         QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("F2"),      std::string("Home+A"), Qt::WidgetWithChildrenShortcut, false}},
-    {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Browse Public Game Lobby")).toStdString(),   QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("Ctrl+B"),  std::string(""), Qt::ApplicationShortcut, false}},
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Create Room")).toStdString(),                QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("Ctrl+N"),  std::string(""), Qt::ApplicationShortcut, false}},
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Direct Connect to Room")).toStdString(),     QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("Ctrl+C"),  std::string(""), Qt::ApplicationShortcut, false}},
     {QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Leave Room")).toStdString(),                 QStringLiteral(QT_TRANSLATE_NOOP("Hotkeys", "Main Window")).toStdString(), {std::string("Ctrl+L"),  std::string(""), Qt::ApplicationShortcut, false}},

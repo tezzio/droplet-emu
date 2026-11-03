@@ -6,11 +6,9 @@
 #pragma once
 
 #include <QWidget>
-#include "network/announce_multiplayer_session.h"
 #include "network/network.h"
 
 class QStandardItemModel;
-class Lobby;
 class HostRoomWindow;
 class ClientRoomWindow;
 class DirectConnectWindow;
@@ -55,14 +53,6 @@ public:
     void retranslateUi();
 
     /**
-     * Whether a public room is being hosted or not.
-     * When this is true, Web Services configuration should be disabled.
-     */
-    bool IsHostingPublicRoom() const;
-
-    void UpdateCredentials();
-
-    /**
      * Updates the multiplayer dialogs with a new game list model.
      * This model should be the original model of the game list.
      */
@@ -71,12 +61,10 @@ public:
 public slots:
     void OnNetworkStateChanged(const Network::RoomMember::State& state);
     void OnNetworkError(const Network::RoomMember::Error& error);
-    void OnViewLobby();
     void OnCreateRoom();
     bool OnCloseRoom();
     void OnOpenNetworkRoom();
     void OnDirectConnectToRoom();
-    void OnAnnounceFailed(const WebService::WebResult&);
     void OnSaveConfig();
     void UpdateThemedIcons();
     void ShowNotification();
@@ -85,11 +73,9 @@ public slots:
 signals:
     void NetworkStateChanged(const Network::RoomMember::State&);
     void NetworkError(const Network::RoomMember::Error&);
-    void AnnounceFailed(const WebService::WebResult&);
     void SaveConfig();
 
 private:
-    Lobby* lobby = nullptr;
     HostRoomWindow* host_room = nullptr;
     ClientRoomWindow* client_room = nullptr;
     DirectConnectWindow* direct_connect = nullptr;
@@ -98,7 +84,6 @@ private:
     QStandardItemModel* game_list_model = nullptr;
     QAction* leave_room;
     QAction* show_room;
-    std::shared_ptr<Core::AnnounceMultiplayerSession> announce_multiplayer_session;
     Network::RoomMember::State current_state = Network::RoomMember::State::Uninitialized;
     NotificationStatus notification_status = NotificationStatus::Uninitialized;
     bool has_mod_perms = false;

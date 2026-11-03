@@ -17,7 +17,8 @@
 #include "common/settings.h"
 #include "core/core.h"
 #include "core/internal_network/network_interface.h"
-#include "network/announce_multiplayer_session.h"
+#include "network/network.h"
+#include "network/verify_user.h"
 #include "qt_common/config/uisettings.h"
 #include "ui_host_room.h"
 #include "qt_common/game_list/game_list_p.h"
@@ -26,15 +27,10 @@
 #include "yuzu/multiplayer/message.h"
 #include "yuzu/multiplayer/state.h"
 #include "yuzu/multiplayer/validation.h"
-#ifdef ENABLE_WEB_SERVICE
-#include "web_service/verify_user_jwt.h"
-#endif
 
-HostRoomWindow::HostRoomWindow(QWidget* parent, QStandardItemModel* list,
-                               std::shared_ptr<Core::AnnounceMultiplayerSession> session,
-                               Core::System& system_)
+HostRoomWindow::HostRoomWindow(QWidget* parent, QStandardItemModel* list, Core::System& system_)
     : QDialog(parent, Qt::WindowTitleHint | Qt::WindowCloseButtonHint | Qt::WindowSystemMenuHint),
-      ui(std::make_unique<Ui::HostRoom>()), announce_multiplayer_session(session), system{system_} {
+      ui(std::make_unique<Ui::HostRoom>()), system{system_} {
     ui->setupUi(this);
 
     // set up validation for all of the fields
@@ -58,25 +54,11 @@ HostRoomWindow::HostRoomWindow(QWidget* parent, QStandardItemModel* list,
     // Restore the settings:
     ui->username->setText(
         QString::fromStdString(UISettings::values.multiplayer_room_nickname.GetValue()));
-    if (ui->username->text().isEmpty() && !Settings::values.eden_username.GetValue().empty()) {
-        // Use Eden Web Service user name as nickname by default
-        ui->username->setText(QString::fromStdString(Settings::values.eden_username.GetValue()));
-    }
     ui->room_name->setText(
         QString::fromStdString(UISettings::values.multiplayer_room_name.GetValue()));
     ui->port->setText(QString::number(UISettings::values.multiplayer_room_port.GetValue()));
     ui->max_player->setValue(UISettings::values.multiplayer_max_player.GetValue());
-    int index = UISettings::values.multiplayer_host_type.GetValue();
-    if (index < ui->host_type->count()) {
-        ui->host_type->setCurrentIndex(index);
-    }
-#ifndef ENABLE_WEB_SERVICE
-    // Droplet builds without the web service, so a public room can't be announced (hosting one
-    // fails with "Failed to announce the room"). Rooms are unlisted: friends join by address.
-    ui->host_type->setCurrentIndex(1);
-    ui->host_type->setEnabled(false);
-#endif
-    index = ui->game_list->findData(UISettings::values.multiplayer_game_id.GetValue(),
+    const int index = ui->game_list->findData(UISettings::values.multiplayer_game_id.GetValue(),
                                     GameListItemPath::ProgramIdRole);
     if (index != -1) {
         ui->game_list->setCurrentIndex(index);
@@ -99,22 +81,6 @@ void HostRoomWindow::UpdateGameList(QStandardItemModel* list) {
 
 void HostRoomWindow::RetranslateUi() {
     ui->retranslateUi(this);
-}
-
-std::unique_ptr<Network::VerifyUser::Backend> HostRoomWindow::CreateVerifyBackend(
-    bool use_validation) const {
-    std::unique_ptr<Network::VerifyUser::Backend> verify_backend;
-    if (use_validation) {
-#ifdef ENABLE_WEB_SERVICE
-        verify_backend =
-            std::make_unique<WebService::VerifyUserJWT>(Settings::values.web_api_url.GetValue());
-#else
-        verify_backend = std::make_unique<Network::VerifyUser::NullBackend>();
-#endif
-    } else {
-        verify_backend = std::make_unique<Network::VerifyUser::NullBackend>();
-    }
-    return verify_backend;
 }
 
 void HostRoomWindow::Host() {
@@ -163,7 +129,6 @@ void HostRoomWindow::Host() {
         const auto port =
             ui->port->isModified() ? ui->port->text().toInt() : Network::DefaultRoomPort;
         const auto password = ui->password->text().toStdString();
-        const bool is_public = ui->host_type->currentIndex() == 0;
         Network::Room::BanList ban_list{};
         if (ui->load_ban_list->isChecked()) {
             ban_list = UISettings::values.multiplayer_ban_list;
@@ -172,8 +137,8 @@ void HostRoomWindow::Host() {
             const bool created =
                 room->Create(ui->room_name->text().toStdString(),
                              ui->room_description->toPlainText().toStdString(), "", port, password,
-                             ui->max_player->value(), Settings::values.eden_username.GetValue(),
-                             game, CreateVerifyBackend(is_public), ban_list);
+                             ui->max_player->value(), ui->username->text().toStdString(), game,
+                             std::make_unique<Network::VerifyUser::NullBackend>(), ban_list);
             if (!created) {
                 NetworkMessage::ErrorManager::ShowError(
                     NetworkMessage::ErrorManager::COULD_NOT_CREATE_ROOM);
@@ -182,50 +147,9 @@ void HostRoomWindow::Host() {
                 return;
             }
         }
-        // Start the announce session if they chose Public
-        if (is_public) {
-            if (auto session = announce_multiplayer_session.lock()) {
-                // Register the room first to ensure verify_uid is present when we connect
-                WebService::WebResult result = session->Register();
-                if (result.result_code != WebService::WebResult::Code::Success) {
-                    QMessageBox::warning(
-                        this, tr("Error"),
-                        tr("Failed to announce the room to the public lobby. In order to host a "
-                           "room publicly, you must have a valid Eden account configured in "
-                           "Emulation -> Configure -> Web. If you do not want to publish a room in "
-                           "the public lobby, then select Unlisted instead.\nDebug Message: ") +
-                            QString::fromStdString(result.result_string),
-                        QMessageBox::Ok);
-                    ui->host->setEnabled(true);
-                    if (auto room = Network::GetRoom().lock()) {
-                        room->Destroy();
-                    }
-                    return;
-                }
-                session->Start();
-            } else {
-                LOG_ERROR(Network, "Starting announce session failed");
-            }
-        }
-        std::string token;
-#ifdef ENABLE_WEB_SERVICE
-        if (is_public) {
-            WebService::Client client(Settings::values.web_api_url.GetValue(),
-                                      Settings::values.eden_username.GetValue(),
-                                      Settings::values.eden_token.GetValue());
-            if (auto room = Network::GetRoom().lock()) {
-                token = client.GetExternalJWT(room->GetVerifyUID()).returned_data;
-            }
-            if (token.empty()) {
-                LOG_ERROR(WebService, "Could not get external JWT, verification may fail");
-            } else {
-                LOG_INFO(WebService, "Successfully requested external JWT: size={}", token.size());
-            }
-        }
-#endif
         // TODO: Check what to do with this
         member->Join(ui->username->text().toStdString(), "127.0.0.1", port, 0,
-                     Network::NoPreferredIP, password, token);
+                     Network::NoPreferredIP, password);
 
         // Store settings
         UISettings::values.multiplayer_room_nickname = ui->username->text().toStdString();
@@ -234,7 +158,6 @@ void HostRoomWindow::Host() {
             ui->game_list->currentData(GameListItemPath::ProgramIdRole).toLongLong();
         UISettings::values.multiplayer_max_player = ui->max_player->value();
 
-        UISettings::values.multiplayer_host_type = ui->host_type->currentIndex();
         if (ui->port->isModified() && !ui->port->text().isEmpty()) {
             UISettings::values.multiplayer_room_port = ui->port->text().toInt();
         } else {

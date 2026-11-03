@@ -20,7 +20,6 @@ class HostRoom;
 
 namespace Core {
 class System;
-class AnnounceMultiplayerSession;
 } // namespace Core
 
 class ConnectionError;
@@ -28,17 +27,11 @@ class ComboBoxProxyModel;
 
 class ChatMessage;
 
-namespace Network::VerifyUser {
-class Backend;
-};
-
 class HostRoomWindow : public QDialog {
     Q_OBJECT
 
 public:
-    explicit HostRoomWindow(QWidget* parent, QStandardItemModel* list,
-                            std::shared_ptr<Core::AnnounceMultiplayerSession> session,
-                            Core::System& system_);
+    explicit HostRoomWindow(QWidget* parent, QStandardItemModel* list, Core::System& system_);
     ~HostRoomWindow();
 
     /**
@@ -53,10 +46,8 @@ signals:
 
 private:
     void Host();
-    std::unique_ptr<Network::VerifyUser::Backend> CreateVerifyBackend(bool use_validation) const;
 
     std::unique_ptr<Ui::HostRoom> ui;
-    std::weak_ptr<Core::AnnounceMultiplayerSession> announce_multiplayer_session;
     QStandardItemModel* game_list;
     ComboBoxProxyModel* proxy;
     Validation validation;

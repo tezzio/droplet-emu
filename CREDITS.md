@@ -58,7 +58,7 @@ cover, and their license texts are in [LICENSES](LICENSES).
 - **Playing together:**
   - online play on private servers (Reservoir): a server redirect, with Nintendo's hosts blocked;
     socket, SSL and network fixes; per-server friend codes, friends and profiles; room IDs;
-  - LAN play: local network requests, emulator rooms in eden-cli, polling of room sockets.
+  - LAN play: local network requests, emulator rooms in droplet-cli, polling of room sockets.
 - **Frontends:**
   - decrypted games open from their folders: File > Open Game Folder (the main way to start a game),
     a button under the game list, drag and drop and the command line, with list entries named by

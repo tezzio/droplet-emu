@@ -98,7 +98,10 @@ void FixProfiles() {
            "Click \"OK\" to open your save folder and fix up your profiles.<br>"
            "Hint: copy the contents of the largest or last-modified folder elsewhere, "
            "delete all orphaned profiles, and move your copied contents to the good "
-           "profile.<br>")
+           "profile.<br><br>"
+           "Still confused? See the <a "
+           "href='https://gitlab.com/seighttt/droplet/-/blob/main/docs/user/Orphaned.md'>"
+           "help page</a>.<br>")
             .arg(qorphaned, qgood));
 
     QtCommon::Game::OpenSaveFolder();

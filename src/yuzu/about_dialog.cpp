@@ -22,11 +22,8 @@ AboutDialog::AboutDialog(QWidget* parent)
     const auto yuzu_build_version = override_build.empty() ? yuzu_build : override_build;
 
     ui->setupUi(this);
-    // Try and request the icon from Qt theme (Linux?)
-    const QIcon yuzu_logo = QIcon::fromTheme(QStringLiteral("org.yuzu_emu.yuzu"));
-    if (!yuzu_logo.isNull()) {
-        ui->labelLogo->setPixmap(yuzu_logo.pixmap(200));
-    }
+    // The logo is Droplet's own, from the form: icon themes (WhiteSur, Papirus...) ship yuzu's logo
+    // under the "org.yuzu_emu.yuzu" name this used to ask them for.
     ui->labelBuildInfo->setText(
         ui->labelBuildInfo->text().arg(QString::fromStdString(yuzu_build_version),
                                        QString::fromUtf8(Common::g_build_date).left(10)));

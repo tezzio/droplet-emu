@@ -540,7 +540,7 @@ static void UpdateMousePanning(Core::System& system, InputCommon::InputSubsystem
     input_subsystem.GetMouse()->NotifyChanged();
 }
 
-// eden-cli has no input dialog and player 1 starts on keyboard bindings: map the first game
+// droplet-cli has no input dialog and player 1 starts on keyboard bindings: map the first game
 // controller SDL finds onto player 1 with the input layer's defaults for it (the Qt frontend's
 // auto-map), and go back to the keyboard when it's unplugged. Leaves player 1 alone if the config
 // already binds it to something other than the keyboard. EDEN_NX2_NO_PAD_AUTOMAP turns this off.

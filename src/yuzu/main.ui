@@ -161,7 +161,8 @@
     <property name="title">
      <string>&amp;Multiplayer</string>
     </property>
-    <addaction name="action_View_Lobby"/>
+    <addaction name="action_Online_Settings"/>
+    <addaction name="separator"/>
     <addaction name="action_Start_Room"/>
     <addaction name="action_Connect_To_Room"/>
     <addaction name="separator"/>
@@ -286,12 +287,9 @@
     <string>Show Status Bar</string>
    </property>
   </action>
-  <action name="action_View_Lobby">
-   <property name="enabled">
-    <bool>true</bool>
-   </property>
+  <action name="action_Online_Settings">
    <property name="text">
-    <string>&amp;Browse Public Game Lobby</string>
+    <string>&amp;Online Play Settings...</string>
    </property>
   </action>
   <action name="action_Start_Room">
