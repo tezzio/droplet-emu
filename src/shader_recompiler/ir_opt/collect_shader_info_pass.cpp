@@ -469,15 +469,6 @@ void VisitUsages(Info& info, IR::Inst& inst) {
     case IR::Opcode::WorkgroupId:
         info.uses_workgroup_id = true;
         break;
-    case IR::Opcode::ReadStageBuffer:
-        info.uses_stage_buffer = true;
-        break;
-    case IR::Opcode::WriteStageBuffer:
-        info.uses_stage_buffer = true;
-        if (!inst.Arg(2).IsImmediate() || (inst.Arg(2).U32() & StageBufferAttr) == 0) {
-            info.writes_mesh_primitives = true;
-        }
-        break;
     case IR::Opcode::LocalInvocationId:
         info.uses_local_invocation_id = true;
         break;
@@ -972,10 +963,12 @@ void CollectShaderInfoPass(Environment& env, IR::Program& program) {
         switch (program.stage) {
         case Stage::VertexA:
         case Stage::VertexB:
+        case Stage::Task: // bound in the vertex slot
             return 0x110u;
         case Stage::TessellationControl:
             return 0x210u;
         case Stage::TessellationEval:
+        case Stage::Mesh: // bound in the tessellation slot
             return 0x310u;
         case Stage::Geometry:
             return 0x410u;
@@ -983,13 +976,15 @@ void CollectShaderInfoPass(Environment& env, IR::Program& program) {
             return 0x510u;
         case Stage::Compute:
             return 0x310u;
-        case Stage::Task:
-        case Stage::Mesh:
-            break;
         }
         throw InvalidArgument("Invalid stage {}", program.stage);
     }()};
     info.nvn_buffer_base = base;
+    if (program.stage == Stage::Task || program.stage == Stage::Mesh) {
+        // The stage buffer reads the workgroup index; the epilogue splits work by invocation.
+        info.uses_workgroup_id = true;
+        info.uses_local_invocation_id = true;
+    }
 
     for (IR::Block* const block : program.post_order_blocks) {
         for (IR::Inst& inst : block->Instructions()) {

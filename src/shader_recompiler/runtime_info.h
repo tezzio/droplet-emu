@@ -7,6 +7,7 @@
 #pragma once
 
 #include <array>
+#include <bitset>
 #include <map>
 #include <optional>
 #include <vector>
@@ -85,6 +86,8 @@ struct TransformFeedbackVarying {
 struct RuntimeInfo {
     std::array<AttributeType, 32> generic_input_types{};
     VaryingState previous_stage_stores;
+    /// Fragment stage after a mesh program: generic inputs it writes per primitive.
+    std::bitset<32> per_primitive_generics{};
     std::map<IR::Attribute, IR::Attribute> previous_stage_legacy_stores_mapping;
 
     bool convert_depth_mode{};
@@ -114,17 +117,6 @@ struct RuntimeInfo {
 
     /// Dual source blending
     bool dual_source_blend{};
-
-    /// Task and mesh programs (docs/MESH_SHADING.md): the limits from 3D register 0x1150 and the
-    /// components the mesh writes, in its stage buffer's order: position, then generic vectors
-    /// (xyzw bit masks; [0] position, [1 + n] generic n)
-    u32 mesh_max_vertices{};
-    u32 mesh_max_primitives{};
-    std::array<u8, 33> mesh_output_masks{};
-    /// The generic components written per primitive (after the vertex blocks, in the same order),
-    /// which the fragment program reads as PerPrimitiveEXT inputs (set for both stages)
-    std::array<u8, 32> mesh_primitive_masks{};
-    bool mesh_has_task{};
 };
 
 } // namespace Shader

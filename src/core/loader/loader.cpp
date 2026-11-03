@@ -15,11 +15,14 @@
 #include "common/logging.h"
 #include "common/string_util.h"
 #include "core/core.h"
+#include "core/file_sys/control_metadata.h"
+#include "core/file_sys/nup_container.h"
 #include "core/hle/kernel/k_process.h"
 #include "core/loader/deconstructed_rom_directory.h"
 #include "core/loader/kip.h"
 #include "core/loader/nro.h"
 #include "core/loader/nso.h"
+#include "core/loader/nup.h"
 
 namespace Loader {
 
@@ -36,10 +39,12 @@ std::optional<FileType> IdentifyFileLoader(FileSys::VirtualFile file) {
 
 } // namespace
 
-// Droplet: only unencrypted formats load: NRO, KIP, NSO and decrypted ExeFS/RomFS directories.
-// Encrypted Switch content (NCA, NAX, NSP/NSZ, XCI/XCZ) is not supported.
+// Droplet: only unencrypted formats load: NRO, KIP, NSO, decrypted ExeFS/RomFS directories and
+// NUP containers of them. Encrypted Switch content (NCA, NAX, NSP/NSZ, XCI/XCZ) is not supported.
 FileType IdentifyFile(FileSys::VirtualFile file) {
-    if (const auto nro_type = IdentifyFileLoader<AppLoader_NRO>(file)) {
+    if (const auto nup_type = IdentifyFileLoader<AppLoader_NUP>(file)) {
+        return *nup_type;
+    } else if (const auto nro_type = IdentifyFileLoader<AppLoader_NRO>(file)) {
         return *nro_type;
     } else if (const auto kip_type = IdentifyFileLoader<AppLoader_KIP>(file)) {
         return *kip_type;
@@ -53,6 +58,35 @@ FileType IdentifyFile(FileSys::VirtualFile file) {
     }
 }
 
+bool IsBootableGameContainer(FileSys::VirtualFile file, FileType type,
+                             [[maybe_unused]] u64 program_id,
+                             [[maybe_unused]] std::size_t program_index) {
+    if (!file) {
+        return false;
+    }
+    if (type == FileType::Unknown) {
+        type = IdentifyFile(file);
+    }
+    if (type != FileType::NUP) {
+        return false;
+    }
+    FileSys::NupContainer nup{file};
+    if (nup.GetStatus() != ResultStatus::Success) {
+        return false;
+    }
+    // A base package boots normally; a standalone update (no base) carries a complete patched
+    // tree and boots on its own (SPEC section 4.1.2).
+    if (const auto base = nup.FindBasePackage();
+        base.has_value() && nup.GetExeFSDir(*base) != nullptr) {
+        return true;
+    }
+    if (const auto update = nup.FindBestUpdatePackage();
+        update.has_value() && nup.GetExeFSDir(*update) != nullptr) {
+        return true;
+    }
+    return false;
+}
+
 FileType GuessFromFilename(const std::string& name) {
     if (name == "main")
         return FileType::DeconstructedRomDirectory;
@@ -63,6 +97,8 @@ FileType GuessFromFilename(const std::string& name) {
         return FileType::NRO;
     else if (extension == "nso")
         return FileType::NSO;
+    else if (extension == "nup")
+        return FileType::NUP;
     else if (extension == "kip")
         return FileType::KIP;
     return FileType::Unknown;
@@ -74,6 +110,8 @@ std::string GetFileTypeString(FileType type) {
         return "NRO";
     case FileType::NSO:
         return "NSO";
+    case FileType::NUP:
+        return "NUP";
     case FileType::KIP:
         return "KIP";
     case FileType::DeconstructedRomDirectory:
@@ -86,7 +124,7 @@ std::string GetFileTypeString(FileType type) {
     return "unknown";
 }
 
-constexpr std::array<const char*, 68> RESULT_MESSAGES{
+constexpr std::array<const char*, 70> RESULT_MESSAGES{
     "The operation completed successfully.",
     "The loader requested to load is already loaded.",
     "The operation is not implemented.",
@@ -155,6 +193,8 @@ constexpr std::array<const char*, 68> RESULT_MESSAGES{
     "The INI file contains more than the maximum allowable number of KIP files.",
     "Integrity verification could not be performed for this file.",
     "Integrity verification failed.",
+    "The NUP container is malformed or its TOC hash does not match.",
+    "The NUP container does not contain a loadable base package.",
 };
 
 std::string GetResultStatusString(ResultStatus status) {
@@ -168,6 +208,15 @@ std::ostream& operator<<(std::ostream& os, ResultStatus status) {
 
 AppLoader::AppLoader(FileSys::VirtualFile file_) : file(std::move(file_)) {}
 AppLoader::~AppLoader() = default;
+
+ResultStatus AppLoader::ReadDisplayVersion(std::string& version) {
+    FileSys::NACP control;
+    if (const ResultStatus result = ReadControlData(control); result != ResultStatus::Success) {
+        return result;
+    }
+    version = control.GetVersionString();
+    return ResultStatus::Success;
+}
 
 /**
  * Get a loader for a file with a specific type
@@ -188,6 +237,10 @@ static std::unique_ptr<AppLoader> GetFileLoader(FileSys::VirtualFile file, FileT
     // NX KIP (Kernel Internal Process) file format
     case FileType::KIP:
         return std::make_unique<AppLoader_KIP>(std::move(file));
+
+    // NUP (NX Package) container format.
+    case FileType::NUP:
+        return std::make_unique<AppLoader_NUP>(std::move(file));
 
     // NX deconstructed ROM directory.
     case FileType::DeconstructedRomDirectory:

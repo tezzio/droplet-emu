@@ -97,11 +97,19 @@ void EmitGetInBoundsFromOp(EmitContext& ctx) {
     NotImplemented();
 }
 
-void EmitReadStageBuffer(EmitContext& ctx) {
+void EmitIsbeRead(EmitContext& ctx) {
     NotImplemented();
 }
 
-void EmitWriteStageBuffer(EmitContext& ctx) {
+void EmitIsbeWriteAttribute(EmitContext& ctx) {
+    NotImplemented();
+}
+
+void EmitIsbeWriteMapU8(EmitContext& ctx) {
+    NotImplemented();
+}
+
+void EmitIsbeWriteMapU32(EmitContext& ctx) {
     NotImplemented();
 }
 

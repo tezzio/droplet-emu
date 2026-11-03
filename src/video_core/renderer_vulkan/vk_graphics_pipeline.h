@@ -87,7 +87,6 @@ public:
         const std::array<const Shader::Info*, NUM_STAGES>& infos);
 
     bool HasDynamicVertexInput() const noexcept { return key.state.dynamic_vertex_input; }
-    bool IsMesh() const noexcept { return is_mesh; }
     bool SupportsAlphaToCoverage() const noexcept {
         return fragment_has_color0_output;
     }
@@ -98,6 +97,11 @@ public:
 
     bool UsesExtendedDynamicState() const noexcept {
         return key.state.extended_dynamic_state != 0;
+    }
+
+    /// Switch 2 task/mesh pipeline: drawn with vkCmdDrawMeshTasksEXT.
+    [[nodiscard]] bool IsMeshPipeline() const noexcept {
+        return stage_infos[0].is_task || stage_infos[0].is_mesh;
     }
     GraphicsPipeline& operator=(GraphicsPipeline&&) noexcept = delete;
     GraphicsPipeline(GraphicsPipeline&&) noexcept = delete;
@@ -118,6 +122,21 @@ public:
         const auto it{std::find(transition_keys.begin(), transition_keys.end(), current_key)};
         return it != transition_keys.end() ? transitions[std::distance(transition_keys.begin(), it)]
                                            : nullptr;
+    }
+
+    /// The frame the pipeline cache last handed this pipeline out (evicts long unused ones).
+    void MarkUsed(u64 frame) noexcept {
+        last_use_frame = frame;
+    }
+
+    [[nodiscard]] u64 LastUse() const noexcept {
+        return last_use_frame;
+    }
+
+    /// Forgets the transitions, which may point to pipelines the cache evicted.
+    void ClearTransitions() noexcept {
+        transition_keys.clear();
+        transitions.clear();
     }
 
     [[nodiscard]] bool IsBuilt() const noexcept {
@@ -160,6 +179,7 @@ private:
 
     std::vector<GraphicsPipelineCacheKey> transition_keys;
     std::vector<GraphicsPipeline*> transitions;
+    u64 last_use_frame{};
 
     std::array<vk::ShaderModule, NUM_STAGES> spv_modules;
 
@@ -170,10 +190,6 @@ private:
     size_t num_image_elements{};
     u32 num_textures{};
     bool fragment_has_color0_output{};
-    // A Switch 2 task and mesh pipeline (docs/MESH_SHADING.md): drawn with vkCmdDrawMeshTasksEXT
-    bool is_mesh{};
-    bool has_task{};
-    VkShaderStageFlags push_constant_stages{VK_SHADER_STAGE_ALL_GRAPHICS};
 
     vk::DescriptorSetLayout descriptor_set_layout;
     DescriptorAllocator descriptor_allocator;

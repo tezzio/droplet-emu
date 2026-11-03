@@ -319,7 +319,7 @@ EmitContext::EmitContext(IR::Program& program, Bindings& bindings, const Profile
         break;
     case Stage::Task:
     case Stage::Mesh:
-        break;
+        throw NotImplementedException("GLSL task and mesh programs");
     case Stage::Compute:
         stage_name = "cs";
         const u32 local_x{(std::max)(program.workgroup_size[0], 1u)};

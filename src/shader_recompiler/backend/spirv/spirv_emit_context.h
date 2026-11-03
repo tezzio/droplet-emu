@@ -361,33 +361,33 @@ public:
     Id frag_depth{};
 
     std::vector<Id> interfaces;
-
-    // Task and mesh programs (docs/MESH_SHADING.md). The stage buffer they write is copied into
-    // workgroup memory, and main's epilogue turns it into EmitMeshTasksEXT or the mesh outputs.
-    static constexpr u32 TASK_PAYLOAD_WORDS = 1024;
-    Id mesh_workgroup_id{};
-    Id mesh_local_invocation_id{};
-    Id task_payload{};
-    Id task_payload_pointer{};
-    Id mesh_attributes{};
-    Id mesh_index_bytes{};
-    Id mesh_primitive_count{};
-    Id mesh_workgroup_pointer{};
-    Id mesh_vertices{};
-    std::array<Id, 32> mesh_generic_outputs{};
-    std::array<Id, 32> mesh_primitive_outputs{};
-    Id mesh_output_float_pointer{};
-    Id mesh_indices{};
-    Id mesh_index_pointer{};
-    u32 mesh_attribute_words{};
-    u32 mesh_index_byte_count{};
-    u32 mesh_vertex_block_bytes{};
-    u32 mesh_primitive_components{};
-    // Stand-ins rewritten after assembly (Sirit has no mesh instructions): an OpStore of these
-    // two ids becomes OpSetMeshOutputsEXT, an OpControlBarrier on this id OpEmitMeshTasksEXT
-    std::optional<std::pair<u32, u32>> set_mesh_outputs_stand_in;
-    std::optional<u32> emit_mesh_tasks_stand_in;
     std::vector<std::pair<u32, spv::Op>> opcode_rewrites;
+
+    // Task and mesh programs. Their stage buffer: the task's output region is the task payload
+    // (the mesh stage's input region); the mesh output regions live in workgroup memory until
+    // the epilogue copies them to the outputs. The two mesh instructions Sirit lacks are emitted
+    // as OpStore markers with these operands and replaced after assembly (PatchMeshInstructions).
+    struct MeshLineTarget {
+        Id variable;    ///< arrayed output
+        u32 element;    ///< vector element, or ~0 for a scalar output
+        bool is_float;  ///< bitcast the stage buffer word to F32
+    };
+    Id mesh_payload{};
+    Id mesh_payload_u32{};  ///< pointer type to one payload word
+    Id mesh_attributes{};
+    Id mesh_map{};
+    Id mesh_primitive_count{};
+    Id mesh_shared_u32{};   ///< pointer type to one workgroup word
+    Id mesh_primitive_indices{};
+    MeshInfo mesh_info{};
+    u32 mesh_threads{};
+    u32 mesh_attribute_words{};
+    u32 mesh_map_bytes{};
+    u32 mesh_primitive_base{}; ///< first word of the per-primitive groups
+    std::vector<MeshLineTarget> mesh_vertex_targets;
+    std::vector<MeshLineTarget> mesh_primitive_targets;
+    std::array<Id, 2> mesh_outputs_marker{};
+    std::array<Id, 4> mesh_tasks_marker{};
 
     Id load_const_func_u8{};
     Id load_const_func_u16{};
@@ -428,7 +428,7 @@ private:
 
     void DefineInputs(const IR::Program& program);
     void DefineOutputs(const IR::Program& program);
-    void DefineMeshShading(const IR::Program& program);
+    void DefineMesh(const IR::Program& program);
 };
 
 } // namespace Shader::Backend::SPIRV

@@ -82,6 +82,9 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::SetAttribute:
     case Opcode::SetAttributeIndexed:
     case Opcode::SetPatch:
+    case Opcode::IsbeWriteAttribute:
+    case Opcode::IsbeWriteMapU8:
+    case Opcode::IsbeWriteMapU32:
     case Opcode::SetFragColor:
     case Opcode::SetSampleMask:
     case Opcode::SetFragDepth:
@@ -103,7 +106,6 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::WriteSharedU8:
     case Opcode::WriteSharedU16:
     case Opcode::WriteSharedU32:
-    case Opcode::WriteStageBuffer:
     case Opcode::WriteSharedU64:
     case Opcode::WriteSharedU128:
     case Opcode::SharedAtomicIAdd32:

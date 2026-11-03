@@ -82,7 +82,7 @@ EmitContext::EmitContext(IR::Program& program, Bindings& bindings, const Profile
         break;
     case Stage::Task:
     case Stage::Mesh:
-        break;
+        throw NotImplementedException("GLASM task and mesh programs");
     }
     const std::string_view attr_stage{stage == Stage::Fragment ? "fragment" : "vertex"};
     const VaryingState loads{info.loads.mask | info.passthrough.mask};

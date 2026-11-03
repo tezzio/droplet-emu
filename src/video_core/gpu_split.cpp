@@ -34,12 +34,14 @@ void Pause() {
     _mm_pause();
 #elif defined(__x86_64__) || defined(__i386__)
     __builtin_ia32_pause();
+#elif defined(__aarch64__)
+    asm volatile("yield");
 #else
     std::this_thread::yield();
 #endif
 }
 
-std::atomic<u32> g_back_thread_id{};
+[[maybe_unused]] std::atomic<u32> g_back_thread_id{};
 std::atomic<bool> g_back_busy{};
 
 } // Anonymous namespace
@@ -88,15 +90,23 @@ void GpuSplit::MaybeStart(Core::System& system_) {
         return value != nullptr ? value[0] : '2';
     }();
     const bool wanted = mode == '1' || mode == '2';
-    if (active || !wanted || !Tegra::g_nx2_ampere.load(std::memory_order_relaxed)) {
+    if (!wanted || !Tegra::g_nx2_ampere.load(std::memory_order_relaxed)) {
         return;
     }
     // The front reads command lists straight from guest memory; a read that flushes the caches
-    // first (safe DMA, accurate GPU) would touch back-owned state.
+    // first (safe DMA, accurate GPU) would touch back-owned state. The settings can change
+    // mid-game: hand the engines back to the front (and start again when they allow it).
     const bool safe_reads = Settings::IsDMALevelDefault() ? Settings::IsGPULevelHigh()
                                                           : Settings::IsDMALevelSafe();
-    if (safe_reads || Settings::IsGPULevelHigh() ||
-        Settings::values.renderer_backend.GetValue() != Settings::RendererBackend::Vulkan) {
+    const bool allowed = !safe_reads && !Settings::IsGPULevelHigh() &&
+                         Settings::values.renderer_backend.GetValue() == Settings::RendererBackend::Vulkan;
+    if (active && !allowed) {
+        Drain();
+        Stop();
+        LOG_INFO(HW_GPU, "GPU thread split: stopped, the accuracy settings need the caches on the front");
+        return;
+    }
+    if (active || !allowed) {
         return;
     }
     system = &system_;
@@ -122,6 +132,22 @@ void GpuSplit::Stop() {
     wake.notify_one();
     back_thread.join();
     active = false;
+    // The split is static and outlives the emulation session. The next session's back thread
+    // starts reading at 0: with the old positions kept it skipped through the new, empty ring a
+    // wrap at a time and never reached the old write position (the next game's first GPU work
+    // never ran, it waited on its syncpoint forever), and the engines it held were freed.
+    ring.reset();
+    write_position = 0;
+    last_writer_position = 0;
+    published_local = 0;
+    consumed_cache = 0;
+    publish_every = PublishEvery;
+    front_engine = nullptr;
+    back_engine = nullptr;
+    front_macros = false;
+    published.store(0, std::memory_order_relaxed);
+    consumed.store(0, std::memory_order_relaxed);
+    back_waiting.store(false, std::memory_order_relaxed);
 }
 
 u64* GpuSplit::ReserveSlow(size_t words) {
@@ -181,6 +207,28 @@ void GpuSplit::Drain() {
         consumed_cache = consumed.load(std::memory_order_acquire);
         if (consumed_cache == write_position) {
             publish_every = 8;
+            return;
+        }
+        if (spins < 16384) {
+            Pause();
+        } else {
+            std::this_thread::yield();
+        }
+    }
+}
+
+void GpuSplit::WaitForWriters() {
+    const u64 target = std::min(last_writer_position, write_position);
+    consumed_cache = consumed.load(std::memory_order_acquire);
+    if (consumed_cache >= target) {
+        return;
+    }
+    wait_target.store(target, std::memory_order_seq_cst);
+    Publish();
+    for (u32 spins = 0;; ++spins) {
+        consumed_cache = consumed.load(std::memory_order_acquire);
+        if (consumed_cache >= target) {
+            wait_target.store(~u64{0}, std::memory_order_relaxed);
             return;
         }
         if (spins < 16384) {
@@ -321,8 +369,11 @@ void GpuSplit::BackLoop(std::stop_token stop_token) {
             const size_t index = read_position & RingMask;
             const size_t size = Execute(&ring[index]);
             read_position += size != 0 ? size : RingWords - index;
-            // Hand ring space back now and then while working through a long batch.
-            if (read_position - last_store >= 4096 && read_position != available) {
+            // Hand ring space back now and then while working through a long batch, and at once
+            // when the front waits for this position (WaitForWriters).
+            if ((read_position - last_store >= 4096 ||
+                 read_position >= wait_target.load(std::memory_order_relaxed)) &&
+                read_position != available) {
                 consumed.store(read_position, std::memory_order_release);
                 last_store = read_position;
             }

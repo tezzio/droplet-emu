@@ -12,41 +12,26 @@ cover, and their license texts are in [LICENSES](LICENSES).
   built on. GPL-3.0-or-later.
 - **yuzu** (the yuzu Emulator Project) and **Sudachi**, which Eden continues, and **Citra**, where
   yuzu's code began. yuzu's code is GPL-2.0-or-later.
-- **[Eglantine](https://github.com/Djihads80/Eglantine)**, an experimental Switch 2 emulator
-  (GPL-3.0). Droplet carries these of its commits, by their authors:
-  - Takoroka (eden-nx2's author): `636d4526108a` core_timing: request the timer thread's stop before
-    waking it; `74cbdf00565e` kernel: clear the fastmem arena when the application process is closed;
-    `c90ce4034dd1` nvdrv: reset the Switch 2 GPU globals when the module is created; `71f3d8d30420`
-    and `942c51c0b457` (pull request #41) GPU memory map notify ranges; `0218eacfd560` nx2: run the
-    guest counter at 31.25 MHz for Switch 2 titles; `1eb97beca0e7` and `a1d47717ae7f` nx2: log
-    levels; `04a64dee831e` sm: give Switch 2 programs a stub for services Eden does not have;
-    `68d166f43810` nx2: crop Mario Kart World's frame to 1920x1080 in handheld mode; `6380b6687ded`
-    nx2: give sparse regions memory only where the GPU writes; `97ce27ab3515` texture_cache:
-    re-decode only the written layers of large ASTC arrays; `940d44ca2562` texture_cache: give images
-    over unwritten sparse blocks no device memory; `d4ee7fcd5129` vulkan: bind memory to sparse
-    terrain arrays layer by layer; `eb99da60729b` video_core: draw deferred instances before the state
-    after their loop; `d151e53e6148` nx2: read command lists the GPU wrote from the GPU's copy;
-    `f260bcb5a26a` memory: skip clearing guest memory that is still zero.
-  - xtam: `a4a746b47b1d` restore Mario Kart World text by accepting R0 shader returns.
-  - ZnOw01: `75b707a90ac8` yuzu_cmd: skip kernel teardown when nothing was booted.
-  - givethesourceplox: `24e3cb462e47` core: return empty perf stats before the system is running;
-    `ea33ad186597` vulkan: write the driver pipeline cache atomically; `ca524c9aa883` vulkan: keep
-    the image's view type when a shader's dimension disagrees; `ef65ec709d34` (pull request #35)
-    yuzu_cmd: update the window title on the main thread.
-  - kraibse: `6e7edd746232` QMD cache: remove completed entries.
-  - Wael3rd: `59047f0e6fd1` shader_recompiler: run the destructors of pooled objects.
-  - theofficialhackclean: `a8657997e1eb` and `50c9fd3471d5` Mario Kart World fixes (window size).
-  - ymatrix1: `91691cf551e8` video_core/dma_pusher: fast-path batching of consecutive
-    non-execution methods.
-  - pull request #48, `ddd367a815`: core: end device page runs where pages are unmapped or mapped
-    again.
+- **[Eglantine](https://github.com/Djihads80/Eglantine)**, an experimental Switch 2 emulator built on
+  eden-nx2 (GPL-3.0). Droplet merges its `nx2` branch up to commit `68a945d0a8` (2026-11-03), except
+  Eglantine's CI, documentation, translation and branding changes, pull request #313 and a few commits
+  left out on purpose. That is 376 of its commits, by Takoroka (eden-nx2's author) 188, kraibse 38,
+  Duck912/duck912 27, Sssnowyyy 22, snowstormxd 21, rdenno 8, néo Luigi 7, givethesourceplox 7,
+  a55uka 5, Djihads80 5, Jonas 4, Yuri Olive 4, Meow 4, Wael3rd 3, shiv121231 3, yumekiru/yumerkiru 3,
+  Paulo Rossatto 2, theofficialhackclean 2, and one each by Adya, Alex, arisqz, Daniel Cabral, Dennys
+  Kaluzny Pereira, Djibril, Franz, gabrielskaminski, Javier, Kaydax, lesmmwe, Mako, Omar Mahboubi,
+  PavelBARABANOV, QuantumDriftDev, sdas-19, spaina93, vibecodekun, Whovian64, xtam, ymatrix1, yvonne
+  and ZnOw01. [CREDITS-Eglantine.md](CREDITS-Eglantine.md) lists each commit with its author.
+- **[AMD FidelityFX SDK](https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK)** v1.1.4 by
+  Advanced Micro Devices (MIT), through Eglantine: the FSR 3.1 upscaler's shader code, unmodified, in
+  `externals/FidelityFX-SDK`.
 - **Third-party libraries** fetched or bundled by the build (see `cpmfile.json` and `externals`),
   each under its own license.
 
 ## Changes from eden-nx2
 
 - **Name and policy:**
-  - the name Droplet, a new logo and an on-screen watermark;
+  - the name Droplet and a new logo;
   - no encrypted content. Droplet loads no keys and has no NCA, NAX, NSP or XCI loaders, no game
     card, and no installing of games, keys or firmware.
 - **Switch 2 games:**
@@ -61,11 +46,13 @@ cover, and their license texts are in [LICENSES](LICENSES).
   - LAN play: local network requests, emulator rooms in droplet-cli, polling of room sockets.
 - **Frontends:**
   - decrypted games open from their folders: File > Open Game Folder (the main way to start a game),
-    a button under the game list, drag and drop and the command line, with list entries named by
-    their folders;
+    drag and drop and the command line, with list entries named by their folders;
   - the windowed app without a game and an online settings page;
   - controller automapping, mouse aim, and HD rumble and Switch 2 controller names for SDL
     controllers;
   - the area window filter, unlisted rooms, and frame generation on desktop Linux.
+- **From Eglantine** (see [CREDITS-Eglantine.md](CREDITS-Eglantine.md)), among others: FSR 3.1
+  upscaling where a game asks for DLSS, NUP game archives (Convert to NUP in a game's right-click
+  menu, or `droplet-cli --pack-nup`), faster game discovery, and vibration in Switch 2 games.
 - **Testing aids:** unattended test hooks, RenderDoc capture, shader IR dumps and stutter diagnostics.
   All are off unless their `EDEN_NX2_*` variables are set.

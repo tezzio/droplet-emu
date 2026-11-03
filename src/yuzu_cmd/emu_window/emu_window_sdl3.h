@@ -6,7 +6,9 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdlib>
+#include <string>
 #include <tuple>
 #include <utility>
 

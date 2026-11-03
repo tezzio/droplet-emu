@@ -30,10 +30,8 @@ constexpr std::array<std::string_view, 2> Lines{
     "build " OUNCE2DN_BUILD_DATE " - not for distribution",
 };
 #else
-constexpr std::array<std::string_view, 2> Lines{
-    "Experimental Nintendo Switch 2 Emulator Prototype",
-    "Not intended for public release.",
-};
+// Other builds have no watermark (vk_blit_screen.cpp never makes one), so no text either
+constexpr std::array<std::string_view, 0> Lines{};
 #endif
 
 constexpr std::array<const char*, 8> FontPaths{
@@ -61,6 +59,9 @@ struct Bitmap {
 #ifdef HAS_FREETYPE
 // White text with a dark outline, so it reads on both bright and dark scenes.
 Bitmap RenderText() {
+    if (Lines.empty()) {
+        return {};
+    }
     FT_Library library{};
     if (FT_Init_FreeType(&library) != 0) {
         return {};

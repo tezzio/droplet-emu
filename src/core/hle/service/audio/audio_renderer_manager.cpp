@@ -20,14 +20,14 @@ using namespace AudioCore::Renderer;
 
 IAudioRendererManager::IAudioRendererManager(Core::System& system_)
     : ServiceFramework{system_, "audren:u"}
-    , impl(std::make_shared<Manager>(system_))
+    , impl(std::make_shared<AudioCore::Renderer::Manager>(system_))
 {
     // clang-format off
     static const FunctionInfo functions[] = {
         {0, D<&IAudioRendererManager::OpenAudioRenderer>, "OpenAudioRenderer"},
         {1, D<&IAudioRendererManager::GetWorkBufferSize>, "GetWorkBufferSize"},
         {2, D<&IAudioRendererManager::GetAudioDeviceService>, "GetAudioDeviceService"},
-        {3, nullptr, "OpenAudioRendererForManualExecution"},
+        {3, &IAudioRendererManager::StubReplyInterface, "OpenAudioRendererForManualExecution"},
         {4, D<&IAudioRendererManager::GetAudioDeviceServiceWithRevisionInfo>, "GetAudioDeviceServiceWithRevisionInfo"},
     };
     // clang-format on

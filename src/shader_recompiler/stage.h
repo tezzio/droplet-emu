@@ -18,7 +18,8 @@ enum class Stage : u32 {
 
     VertexA,
 
-    // Switch 2 task and mesh programs (docs/MESH_SHADING.md); not program slots of their own
+    // Switch 2 (NVN) task and mesh programs, bound in the vertex and tessellation slots while
+    // SET_MESH_CONTROL is enabled.
     Task,
     Mesh,
 };

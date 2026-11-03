@@ -11,7 +11,6 @@
 #include <utility>
 #include <vector>
 
-#include "common/div_ceil.h"
 #include "common/settings.h"
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
 #include "shader_recompiler/backend/spirv/emit_spirv_instructions.h"
@@ -211,208 +210,6 @@ Id DefineMain(EmitContext& ctx, IR::Program& program) {
     return main;
 }
 
-// Task and mesh programs (docs/MESH_SHADING.md) run as a function of their own: an EXIT returns
-// to main, so every invocation reaches the epilogue, which needs uniform control flow.
-void MeshBarrier(EmitContext& ctx) {
-    ctx.OpControlBarrier(ctx.Const(static_cast<u32>(spv::Scope::Workgroup)),
-                         ctx.Const(static_cast<u32>(spv::Scope::Workgroup)),
-                         ctx.Const(static_cast<u32>(spv::MemorySemanticsMask::AcquireRelease |
-                                                    spv::MemorySemanticsMask::WorkgroupMemory)));
-}
-
-template <typename Body>
-void IfThen(EmitContext& ctx, Id condition, Body&& body) {
-    const Id then_label{ctx.OpLabel()};
-    const Id merge_label{ctx.OpLabel()};
-    ctx.OpSelectionMerge(merge_label, spv::SelectionControlMask::MaskNone);
-    ctx.OpBranchConditional(condition, then_label, merge_label);
-    ctx.AddLabel(then_label);
-    body();
-    ctx.OpBranch(merge_label);
-    ctx.AddLabel(merge_label);
-}
-
-// The stage buffer's vertex blocks and index bytes, as the mesh shader's outputs
-void EmitMeshOutputs(EmitContext& ctx, Id lane) {
-    const RuntimeInfo& info{ctx.runtime_info};
-    const u32 max_vertices{info.mesh_max_vertices};
-    const u32 max_primitives{info.mesh_max_primitives};
-    // EDEN_NX2_MESH_DEBUG: one full-screen triangle instead of the program's output, to check the
-    // draw path on its own
-    static const bool debug = std::getenv("EDEN_NX2_MESH_DEBUG") != nullptr;
-    const Id count{debug ? ctx.Const(1U)
-                         : ctx.OpUMin(ctx.U32[1], ctx.OpLoad(ctx.U32[1], ctx.mesh_primitive_count),
-                                      ctx.Const(max_primitives))};
-    const Id vertex_count{ctx.Const(max_vertices)};
-    if (debug) {
-        ctx.OpStore(vertex_count, count);
-        ctx.set_mesh_outputs_stand_in = std::make_pair(vertex_count.value, count.value);
-        const std::array<std::array<float, 2>, 3> corners{{{-1.0f, -1.0f}, {3.0f, -1.0f}, {-1.0f, 3.0f}}};
-        for (u32 vertex = 0; vertex < 3 && vertex < max_vertices; ++vertex) {
-            const std::array<Id, 4> position{ctx.Const(corners[vertex][0]), ctx.Const(corners[vertex][1]),
-                                             ctx.Const(0.5f), ctx.Const(1.0f)};
-            for (u32 element = 0; element < 4; ++element) {
-                ctx.OpStore(ctx.OpAccessChain(ctx.mesh_output_float_pointer, ctx.mesh_vertices,
-                                              ctx.Const(vertex), ctx.u32_zero_value, ctx.Const(element)),
-                            position[element]);
-            }
-        }
-        ctx.OpStore(ctx.OpAccessChain(ctx.mesh_index_pointer, ctx.mesh_indices, ctx.u32_zero_value),
-                    ctx.ConstantComposite(ctx.U32[3], ctx.Const(0U), ctx.Const(1U), ctx.Const(2U)));
-        return;
-    }
-    ctx.OpStore(vertex_count, count);
-    ctx.set_mesh_outputs_stand_in = std::make_pair(vertex_count.value, count.value);
-    const bool convert_depth{info.convert_depth_mode && !ctx.profile.support_native_ndc};
-    for (u32 block = 0; block * 32 < max_vertices; ++block) {
-        const Id vertex{ctx.OpIAdd(ctx.U32[1], lane, ctx.Const(block * 32))};
-        const auto copy{[&] {
-            // Component k of vertex 32 * block + lane is at block * BLOCK + k * 0x80 + lane * 4
-            std::array<Id, 4> position{ctx.f32_zero_value, ctx.f32_zero_value, ctx.f32_zero_value,
-                                       ctx.Const(1.0f)};
-            u32 component{};
-            for (size_t output = 0; output < info.mesh_output_masks.size(); ++output) {
-                for (u32 element = 0; element < 4; ++element) {
-                    if (((info.mesh_output_masks[output] >> element) & 1) == 0) {
-                        continue;
-                    }
-                    const u32 offset{(block * ctx.mesh_vertex_block_bytes + component++ * 0x80) / 4};
-                    const Id word{ctx.OpIAdd(ctx.U32[1], lane, ctx.Const(offset))};
-                    const Id value{ctx.OpBitcast(
-                        ctx.F32[1], ctx.OpLoad(ctx.U32[1], ctx.OpAccessChain(ctx.mesh_workgroup_pointer,
-                                                                             ctx.mesh_attributes, word)))};
-                    if (output == 0) {
-                        position[element] = value;
-                    } else {
-                        ctx.OpStore(ctx.OpAccessChain(ctx.mesh_output_float_pointer,
-                                                      ctx.mesh_generic_outputs[output - 1], vertex,
-                                                      ctx.Const(element)),
-                                    value);
-                    }
-                }
-            }
-            if (convert_depth) {
-                position[2] = ctx.OpFMul(ctx.F32[1], ctx.OpFAdd(ctx.F32[1], position[2], position[3]),
-                                         ctx.Const(0.5f));
-            }
-            for (u32 element = 0; element < 4; ++element) {
-                ctx.OpStore(ctx.OpAccessChain(ctx.mesh_output_float_pointer, ctx.mesh_vertices, vertex,
-                                              ctx.u32_zero_value, ctx.Const(element)),
-                            position[element]);
-            }
-        }};
-        if ((block + 1) * 32 > max_vertices) {
-            IfThen(ctx, ctx.OpULessThan(ctx.U1, vertex, ctx.Const(max_vertices)), copy);
-        } else {
-            copy();
-        }
-    }
-    // Component k of primitive 32 * block + lane is at PRIM_BASE + block * 0x80 * components +
-    // k * 0x80 + lane * 4, with PRIM_BASE right after the vertex blocks
-    const u32 primitive_base{Common::DivCeil(max_vertices, 32U) * ctx.mesh_vertex_block_bytes};
-    for (u32 block = 0; ctx.mesh_primitive_components != 0 && block * 32 < max_primitives; ++block) {
-        const Id primitive{ctx.OpIAdd(ctx.U32[1], lane, ctx.Const(block * 32))};
-        IfThen(ctx, ctx.OpULessThan(ctx.U1, primitive, ctx.Const(max_primitives)), [&] {
-            u32 component{};
-            for (size_t generic = 0; generic < info.mesh_primitive_masks.size(); ++generic) {
-                for (u32 element = 0; element < 4; ++element) {
-                    if (((info.mesh_primitive_masks[generic] >> element) & 1) == 0) {
-                        continue;
-                    }
-                    const u32 offset{(primitive_base + block * 0x80 * ctx.mesh_primitive_components +
-                                      component++ * 0x80) / 4};
-                    const Id word{ctx.OpIAdd(ctx.U32[1], lane, ctx.Const(offset))};
-                    const Id value{ctx.OpBitcast(
-                        ctx.F32[1], ctx.OpLoad(ctx.U32[1], ctx.OpAccessChain(ctx.mesh_workgroup_pointer,
-                                                                             ctx.mesh_attributes, word)))};
-                    ctx.OpStore(ctx.OpAccessChain(ctx.mesh_output_float_pointer,
-                                                  ctx.mesh_primitive_outputs[generic], primitive,
-                                                  ctx.Const(element)),
-                                value);
-                }
-            }
-        });
-    }
-    for (u32 block = 0; block * 32 < max_primitives; ++block) {
-        const Id primitive{ctx.OpIAdd(ctx.U32[1], lane, ctx.Const(block * 32))};
-        IfThen(ctx, ctx.OpULessThan(ctx.U1, primitive, count), [&] {
-            // Triangle p's indices are bytes 4 + 3p, 4 + 3p + 1 and 4 + 3p + 2
-            const Id first{ctx.OpIAdd(ctx.U32[1], ctx.OpIMul(ctx.U32[1], primitive, ctx.Const(3U)),
-                                      ctx.Const(4U))};
-            std::array<Id, 3> indices;
-            for (u32 index = 0; index < 3; ++index) {
-                const Id byte{ctx.OpIAdd(ctx.U32[1], first, ctx.Const(index))};
-                indices[index] = ctx.OpLoad(
-                    ctx.U32[1], ctx.OpAccessChain(ctx.mesh_workgroup_pointer, ctx.mesh_index_bytes, byte));
-            }
-            ctx.OpStore(ctx.OpAccessChain(ctx.mesh_index_pointer, ctx.mesh_indices, primitive),
-                        ctx.OpCompositeConstruct(ctx.U32[3], indices[0], indices[1], indices[2]));
-        });
-    }
-}
-
-Id DefineMeshMain(EmitContext& ctx, IR::Program& program) {
-    const Id void_function{ctx.TypeFunction(ctx.void_id)};
-    const Id body{ctx.OpFunction(ctx.void_id, spv::FunctionControlMask::MaskNone, void_function)};
-    for (IR::Block* const block : program.blocks) {
-        block->SetDefinition(ctx.OpLabel());
-    }
-    Traverse(ctx, program);
-    ctx.OpFunctionEnd();
-
-    const Id main{ctx.OpFunction(ctx.void_id, spv::FunctionControlMask::MaskNone, void_function)};
-    ctx.AddLabel();
-    const Id lane{ctx.OpCompositeExtract(ctx.U32[1], ctx.OpLoad(ctx.U32[3], ctx.mesh_local_invocation_id),
-                                         0U)};
-    // Each workgroup starts with no mesh workgroups to launch and no primitives
-    const Id count_pointer{ctx.stage == Stage::Task
-                               ? ctx.OpAccessChain(ctx.task_payload_pointer, ctx.task_payload, ctx.Const(1U))
-                               : ctx.mesh_primitive_count};
-    IfThen(ctx, ctx.OpIEqual(ctx.U1, lane, ctx.u32_zero_value),
-           [&] { ctx.OpStore(count_pointer, ctx.u32_zero_value); });
-    MeshBarrier(ctx);
-    ctx.OpFunctionCall(ctx.void_id, body);
-    MeshBarrier(ctx);
-    if (ctx.stage == Stage::Task) {
-        const Id count{ctx.OpUMin(ctx.U32[1], ctx.OpLoad(ctx.U32[1], count_pointer), ctx.Const(256U))};
-        ctx.OpControlBarrier(count, ctx.Const(1U), ctx.Const(1U));
-        ctx.emit_mesh_tasks_stand_in = count.value;
-    } else {
-        EmitMeshOutputs(ctx, lane);
-        ctx.OpReturn();
-    }
-    ctx.OpFunctionEnd();
-    return main;
-}
-
-// Sirit has no mesh instructions: turn the stand-ins EmitMeshOutputs and DefineMeshMain left into
-// OpSetMeshOutputsEXT (same operands as OpStore) and OpEmitMeshTasksEXT (OpControlBarrier's three
-// operands plus the payload).
-void RewriteMeshStandIns(std::vector<u32>& code, const EmitContext& ctx) {
-    if (!ctx.set_mesh_outputs_stand_in && !ctx.emit_mesh_tasks_stand_in) {
-        return;
-    }
-    for (size_t offset = 5; offset < code.size();) {
-        const u32 word_count{code[offset] >> 16};
-        const auto opcode{static_cast<spv::Op>(code[offset] & 0xFFFFu)};
-        if (word_count == 0) {
-            return;
-        }
-        if (opcode == spv::Op::OpStore && word_count == 3 && ctx.set_mesh_outputs_stand_in &&
-            code[offset + 1] == ctx.set_mesh_outputs_stand_in->first &&
-            code[offset + 2] == ctx.set_mesh_outputs_stand_in->second) {
-            code[offset] = (3U << 16) | static_cast<u32>(spv::Op::OpSetMeshOutputsEXT);
-        } else if (opcode == spv::Op::OpControlBarrier && word_count == 4 &&
-                   ctx.emit_mesh_tasks_stand_in && code[offset + 1] == *ctx.emit_mesh_tasks_stand_in) {
-            code[offset] = (5U << 16) | static_cast<u32>(spv::Op::OpEmitMeshTasksEXT);
-            code.insert(code.begin() + static_cast<std::ptrdiff_t>(offset) + 4, ctx.task_payload.value);
-            offset += 5;
-            continue;
-        }
-        offset += word_count;
-    }
-}
-
 spv::ExecutionMode ExecutionMode(TessPrimitive primitive) {
     switch (primitive) {
     case TessPrimitive::Isolines:
@@ -450,6 +247,20 @@ void DefineEntryPoint(const IR::Program& program, EmitContext& ctx, Id main) {
     }
     case Stage::VertexB:
         execution_model = spv::ExecutionModel::Vertex;
+        break;
+    case Stage::Task:
+        execution_model = spv::ExecutionModel::TaskEXT;
+        ctx.AddExecutionMode(main, spv::ExecutionMode::LocalSize, program.workgroup_size[0], 1U,
+                             1U);
+        break;
+    case Stage::Mesh:
+        execution_model = spv::ExecutionModel::MeshEXT;
+        ctx.AddExecutionMode(main, spv::ExecutionMode::LocalSize, program.workgroup_size[0], 1U,
+                             1U);
+        ctx.AddExecutionMode(main, spv::ExecutionMode::OutputVertices, program.mesh.max_vertices);
+        ctx.AddExecutionMode(main, spv::ExecutionMode::OutputPrimitivesEXT,
+                             program.mesh.max_primitives);
+        ctx.AddExecutionMode(main, spv::ExecutionMode::OutputTrianglesEXT);
         break;
     case Stage::TessellationControl:
         execution_model = spv::ExecutionModel::TessellationControl;
@@ -531,19 +342,6 @@ void DefineEntryPoint(const IR::Program& program, EmitContext& ctx, Id main) {
             ctx.AddCapability(spv::Capability::QuadControlKHR);
             ctx.AddExecutionMode(main, spv::ExecutionMode::RequireFullQuadsKHR);
         }
-        break;
-    case Stage::Task:
-        execution_model = spv::ExecutionModel::TaskEXT;
-        ctx.AddExecutionMode(main, spv::ExecutionMode::LocalSize, 32U, 1U, 1U);
-        break;
-    case Stage::Mesh:
-        execution_model = spv::ExecutionModel::MeshEXT;
-        ctx.AddExecutionMode(main, spv::ExecutionMode::LocalSize, 32U, 1U, 1U);
-        ctx.AddExecutionMode(main, spv::ExecutionMode::OutputVertices,
-                             ctx.runtime_info.mesh_max_vertices);
-        ctx.AddExecutionMode(main, spv::ExecutionMode::OutputPrimitivesEXT,
-                             ctx.runtime_info.mesh_max_primitives);
-        ctx.AddExecutionMode(main, spv::ExecutionMode::OutputTrianglesEXT);
         break;
     default:
         throw NotImplementedException("Stage {}", program.stage);
@@ -764,12 +562,56 @@ void RewriteOpcodes(std::vector<u32>& code, std::span<const std::pair<u32, spv::
         offset += word_count;
     }
 }
+
+// Replaces the OpStore markers of the mesh instructions Sirit cannot emit: OpStore(vertices,
+// primitives) becomes OpSetMeshOutputsEXT, and OpStore(x, y), OpStore(z, payload), OpReturn
+// becomes the OpEmitMeshTasksEXT terminator.
+void PatchMeshInstructions(std::vector<u32>& code, const EmitContext& ctx) {
+    const bool set_outputs{Sirit::ValidId(ctx.mesh_outputs_marker[0])};
+    const bool emit_tasks{Sirit::ValidId(ctx.mesh_tasks_marker[0])};
+    if (!set_outputs && !emit_tasks) {
+        return;
+    }
+    const auto store_at = [&](size_t offset, Id pointer, Id object) {
+        return offset + 2 < code.size() &&
+               code[offset] == ((3U << 16) | static_cast<u32>(spv::Op::OpStore)) &&
+               code[offset + 1] == pointer.value && code[offset + 2] == object.value;
+    };
+    const auto& tasks{ctx.mesh_tasks_marker};
+    size_t offset = 5;
+    bool patched{};
+    while (offset < code.size()) {
+        const u32 word_count{code[offset] >> 16};
+        if (word_count == 0) {
+            break;
+        }
+        if (set_outputs &&
+            store_at(offset, ctx.mesh_outputs_marker[0], ctx.mesh_outputs_marker[1])) {
+            code[offset] = (3U << 16) | static_cast<u32>(spv::Op::OpSetMeshOutputsEXT);
+            patched = true;
+        } else if (emit_tasks && store_at(offset, tasks[0], tasks[1]) &&
+                   store_at(offset + 3, tasks[2], tasks[3]) && offset + 6 < code.size() &&
+                   code[offset + 6] == ((1U << 16) | static_cast<u32>(spv::Op::OpReturn))) {
+            const std::array<u32, 5> emit{(5U << 16) | static_cast<u32>(spv::Op::OpEmitMeshTasksEXT),
+                                          tasks[0].value, tasks[1].value, tasks[2].value,
+                                          tasks[3].value};
+            code.erase(code.begin() + offset, code.begin() + offset + 7);
+            code.insert(code.begin() + offset, emit.begin(), emit.end());
+            patched = true;
+            offset += emit.size();
+            continue;
+        }
+        offset += word_count;
+    }
+    if (!patched) {
+        throw LogicError("Mesh instruction markers not found");
+    }
+}
 } // Anonymous namespace
 
 std::vector<u32> EmitSPIRV(const Profile& profile, const RuntimeInfo& runtime_info, IR::Program& program, Bindings& bindings) {
     EmitContext ctx{profile, runtime_info, program, bindings};
-    const bool mesh_stage{program.stage == Stage::Task || program.stage == Stage::Mesh};
-    const Id main{mesh_stage ? DefineMeshMain(ctx, program) : DefineMain(ctx, program)};
+    const Id main{DefineMain(ctx, program)};
     DefineEntryPoint(program, ctx, main);
     if (profile.support_float_controls) {
         ctx.AddExtension("SPV_KHR_float_controls");
@@ -781,7 +623,7 @@ std::vector<u32> EmitSPIRV(const Profile& profile, const RuntimeInfo& runtime_in
     PatchPhiNodes(program, ctx);
     std::vector<u32> code{ctx.Assemble()};
     RewriteOpcodes(code, ctx.opcode_rewrites);
-    RewriteMeshStandIns(code, ctx);
+    PatchMeshInstructions(code, ctx);
     return code;
 }
 

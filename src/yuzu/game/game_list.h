@@ -76,6 +76,7 @@ public:
     bool IsEmpty() const;
 
     void PopulateAsync(QVector<UISettings::GameDir>& game_dirs);
+    void SetScanEnabled(bool enabled);
 
     void SaveInterfaceLayout();
     void LoadInterfaceLayout();
@@ -88,6 +89,7 @@ public:
     void ResetViewMode();
 
 public slots:
+    void SetNupConversionRunning(bool running);
     void RefreshGameDirectory();
     void UpdateIconSizes();
     void OnPopulate();
@@ -105,6 +107,7 @@ signals:
     void SetPlayTimeRequested(u64 program_id);
     void DumpRomFSRequested(u64 program_id, const std::string& game_path, DumpRomFSTarget target);
     void VerifyIntegrityRequested(const std::string& game_path);
+    void ConvertToNupRequested(const std::string& game_path);
     void CopyTIDRequested(u64 program_id);
     void CreateShortcut(u64 program_id, const std::string& game_path,
                         const QtCommon::Game::ShortcutTarget target);
@@ -112,7 +115,6 @@ signals:
     void LinkToRyujinxRequested(const u64& program_id);
     void OpenDirectory(const QString& directory);
     void AddDirectory();
-    void OpenGameFolder();
     void ShowList(bool show);
     void PopulatingCompleted();
     void SaveConfig();
@@ -165,6 +167,7 @@ private:
     Core::System& system;
 
     bool m_isTreeMode = true;
+    bool nup_conversion_running{};
     QAbstractItemView* m_currentView = nullptr;
 };
 
@@ -176,7 +179,6 @@ public:
 
 signals:
     void AddDirectory();
-    void OpenGameFolder();
 
 protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
@@ -188,5 +190,4 @@ private:
     QVBoxLayout* layout = nullptr;
     QLabel* image = nullptr;
     QLabel* text = nullptr;
-    QPushButton* button_open_folder = nullptr;
 };

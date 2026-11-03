@@ -16,7 +16,7 @@ class MemoryAllocator;
 class Scheduler;
 struct PresentPushConstants;
 
-// The "experimental prototype" notice drawn over the picture (Settings::show_watermark). The text
+// The playtest notice drawn over the picture (playtest builds only, see vk_blit_screen.cpp). The text
 // is rasterized once with FreeType from a system font; without FreeType or a font it stays empty.
 class Watermark final {
 public:

@@ -1,3 +1,4 @@
+#pragma GCC diagnostic ignored "-Wmissing-declarations"
 // SPDX-FileCopyrightText: Copyright 2026 Eden Emulator Project
 // SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -171,15 +172,6 @@ void EmuWindow_SDL3::OnKeyEvent(int key, u8 state) {
         LOG_INFO(Frontend, "Mouse panning {}", Settings::values.mouse_panning.GetValue() ? "on" : "off");
         return;
     }
-    // F10 (Ctrl optional, KDE takes Ctrl+F10) shows or hides the watermark, saved on exit
-    // (not in playtest releases, whose watermark stays on).
-#ifndef OUNCE2DN_PLAYTEST
-    if (key == SDL_SCANCODE_F10 && state != 0) {
-        Settings::values.show_watermark = !Settings::values.show_watermark.GetValue();
-        LOG_INFO(Frontend, "Watermark {}", Settings::values.show_watermark.GetValue() ? "on" : "off");
-        return;
-    }
-#endif
     if (state != 0) {
         input_subsystem->GetKeyboard()->PressKey(static_cast<std::size_t>(key));
     } else {

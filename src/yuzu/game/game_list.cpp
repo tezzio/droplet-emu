@@ -24,6 +24,7 @@
 
 #include "common/common_types.h"
 #include "core/core.h"
+#include "core/file_sys/nup_writer.h"
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/registered_cache.h"
 #include "qt_common/config/uisettings.h"
@@ -99,6 +100,10 @@ GameList::GameList(FileSys::VirtualFilesystem vfs_, FileSys::ManualContentProvid
     ResetViewMode();
 }
 
+void GameList::SetNupConversionRunning(bool running) {
+    nup_conversion_running = running;
+}
+
 GameList::~GameList() {
     UnloadController();
 }
@@ -153,6 +158,10 @@ void GameList::OnPopulate() {
 
 void GameList::PopulateAsync(QVector<UISettings::GameDir>& game_dirs) {
     item_model->PopulateAsync(game_dirs);
+}
+
+void GameList::SetScanEnabled(bool enabled) {
+    item_model->SetScanEnabled(enabled);
 }
 
 void GameList::SaveInterfaceLayout() {
@@ -295,7 +304,6 @@ void GameList::OnPopulatingCompleted(const QStringList& watch_list) {
             if (!chunk.isEmpty()) {
                 callback(chunk);
             }
-            QCoreApplication::processEvents();
         }
     };
 
@@ -471,6 +479,11 @@ void GameList::AddGamePopup(QMenu& context_menu, u64 program_id, const std::stri
     QAction* dump_romfs_sdmc = dump_romfs_menu->addAction(tr("Dump RomFS to SDMC"));
     QAction* verify_integrity = context_menu.addAction(tr("Verify Integrity"));
     QAction* copy_tid = context_menu.addAction(tr("Copy Title ID to Clipboard"));
+    QAction* convert_nup = nullptr;
+    if (FileSys::Nup::DumpRootFromMain(path)) {
+        convert_nup = context_menu.addAction(tr("Convert to NUP..."));
+        convert_nup->setEnabled(!nup_conversion_running);
+    }
 #if !defined(__APPLE__)
     QMenu* shortcut_menu = context_menu.addMenu(tr("Create Shortcut"));
     QAction* create_desktop_shortcut = shortcut_menu->addAction(tr("Add to Desktop"));
@@ -551,6 +564,10 @@ void GameList::AddGamePopup(QMenu& context_menu, u64 program_id, const std::stri
             [this, path]() { emit VerifyIntegrityRequested(path); });
     connect(copy_tid, &QAction::triggered, this,
             [this, program_id]() { emit CopyTIDRequested(program_id); });
+    if (convert_nup) {
+        connect(convert_nup, &QAction::triggered, this,
+                [this, path]() { emit ConvertToNupRequested(path); });
+    }
 #if !defined(__APPLE__)
     connect(create_desktop_shortcut, &QAction::triggered, this, [this, program_id, path]() {
         emit CreateShortcut(program_id, path, QtCommon::Game::ShortcutTarget::Desktop);
@@ -745,24 +762,17 @@ GameListPlaceholder::GameListPlaceholder(MainWindow* parent) : QWidget{parent} {
     layout = new QVBoxLayout;
     image = new QLabel;
     text = new QLabel;
-    button_open_folder = new QPushButton;
-    button_open_folder->setObjectName(QStringLiteral("button_placeholder_open_game_folder"));
-    button_open_folder->setIcon(QIcon::fromTheme(QStringLiteral("folder")));
-    connect(button_open_folder, &QPushButton::clicked, this, &GameListPlaceholder::OpenGameFolder);
     layout->setAlignment(Qt::AlignCenter);
     image->setPixmap(QIcon::fromTheme(QStringLiteral("plus_folder")).pixmap(200));
 
     RetranslateUI();
     QFont font = text->font();
-    font.setPointSize(16);
-    button_open_folder->setFont(font);
-    font.setPointSize(14);
+    font.setPointSize(20);
     text->setFont(font);
     text->setAlignment(Qt::AlignHCenter);
     image->setAlignment(Qt::AlignHCenter);
 
     layout->addWidget(image);
-    layout->addWidget(button_open_folder, 0, Qt::AlignHCenter);
     layout->addWidget(text);
     setLayout(layout);
 }
@@ -782,6 +792,5 @@ void GameListPlaceholder::changeEvent(QEvent* event) {
 }
 
 void GameListPlaceholder::RetranslateUI() {
-    button_open_folder->setText(tr("Open Game Folder..."));
-    text->setText(tr("or double-click here to add a folder of games to the list"));
+    text->setText(tr("Double-click to add a new folder to the game list"));
 }

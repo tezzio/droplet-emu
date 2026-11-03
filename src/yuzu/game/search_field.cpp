@@ -4,9 +4,7 @@
 #include "game/game_list.h"
 #include "game/search_field.h"
 
-#include <QIcon>
 #include <QKeyEvent>
-#include <QPushButton>
 #include <QToolButton>
 
 // TODO: Remove GameList dependence?
@@ -103,12 +101,7 @@ GameListSearchField::GameListSearchField(GameList* parent) : QWidget{parent} {
                        "QToolButton:hover{ border: none; padding: 0px; color: "
                        "#EEEEEE; font-weight: bold; background: #E81123}"));
     connect(button_filter_close, &QToolButton::clicked, parent, &GameList::OnFilterCloseClicked);
-    button_open_folder = new QPushButton(this);
-    button_open_folder->setObjectName(QStringLiteral("button_open_game_folder"));
-    button_open_folder->setIcon(QIcon::fromTheme(QStringLiteral("folder")));
-    connect(button_open_folder, &QPushButton::clicked, parent, &GameList::OpenGameFolder);
     layout_filter->setSpacing(10);
-    layout_filter->addWidget(button_open_folder);
     layout_filter->addWidget(label_filter);
     layout_filter->addWidget(edit_filter);
     layout_filter->addWidget(label_filter_result);
@@ -126,7 +119,6 @@ void GameListSearchField::changeEvent(QEvent* event) {
 }
 
 void GameListSearchField::RetranslateUI() {
-    button_open_folder->setText(tr("Open Game Folder..."));
     label_filter->setText(tr("Filter:"));
     edit_filter->setPlaceholderText(tr("Enter pattern to filter"));
 }

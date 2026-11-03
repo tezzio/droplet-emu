@@ -10,7 +10,6 @@ class QHBoxLayout;
 class QTreeView;
 class QLabel;
 class QLineEdit;
-class QPushButton;
 class QToolButton;
 
 class GameListSearchField : public QWidget {
@@ -50,5 +49,4 @@ private:
     QLineEdit* edit_filter = nullptr;
     QLabel* label_filter_result = nullptr;
     QToolButton* button_filter_close = nullptr;
-    QPushButton* button_open_folder = nullptr;
 };

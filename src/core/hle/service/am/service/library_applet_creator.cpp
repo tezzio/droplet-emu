@@ -4,6 +4,9 @@
 // SPDX-FileCopyrightText: Copyright 2024 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <mutex>
+#include <unordered_set>
+
 #include "common/settings.h"
 #include "core/hle/kernel/k_transfer_memory.h"
 #include "core/hle/service/am/applet_data_broker.h"
@@ -23,18 +26,6 @@
 namespace Service::AM {
 
 namespace {
-
-// Switch 2 titles can pass an applet id with bits above the Switch 1 id: Splatoon Raiders asks for
-// its player-name keyboard as 0x01020011, whose low 16 bits are SoftwareKeyboard (0x11). Matched
-// whole, it ran a stub applet and the game re-asked forever ("Can't be blank.").
-AppletId NormalizeAppletId(AppletId applet_id) {
-    const auto raw = static_cast<u32>(applet_id);
-    if (raw <= 0xffff) {
-        return applet_id;
-    }
-    LOG_INFO(Service_AM, "Switch 2 applet id {:#x}, using {:#x}", raw, raw & 0xffff);
-    return static_cast<AppletId>(raw & 0xffff);
-}
 
 bool ShouldCreateGuestApplet(AppletId applet_id) {
 #define X(Name, name)                                                                              \
@@ -111,6 +102,41 @@ AppletProgramId AppletIdToProgramId(AppletId applet_id) {
     }
 }
 
+AppletId NormalizeAppletId(AppletId id) {
+    const u32 raw_id = static_cast<u32>(id);
+    static std::mutex mutex;
+    static std::unordered_set<u32> logged_raw_ids;
+    static std::unordered_set<u32> warned_raw_ids;
+
+    bool log_info = false;
+    {
+        std::scoped_lock lk{mutex};
+        log_info = logged_raw_ids.insert(raw_id).second;
+    }
+    if (log_info) {
+        LOG_INFO(Service_AM, "CreateLibraryApplet called with raw applet_id={:#x}", raw_id);
+    }
+
+    if (AppletIdToProgramId(id) == static_cast<AppletProgramId>(0)) {
+        const auto low_byte = static_cast<AppletId>(raw_id & 0xFF);
+        if (AppletIdToProgramId(low_byte) != static_cast<AppletProgramId>(0)) {
+            bool log_warning = false;
+            {
+                std::scoped_lock lk{mutex};
+                log_warning = warned_raw_ids.insert(raw_id).second;
+            }
+            if (log_warning) {
+                LOG_WARNING(Service_AM,
+                            "Normalizing unknown raw applet_id={:#x} to low byte {:#x}",
+                            raw_id, static_cast<u32>(low_byte));
+            }
+            return low_byte;
+        }
+    }
+
+    return id;
+}
+
 std::shared_ptr<ILibraryAppletAccessor> CreateGuestApplet(Core::System& system,
                                                           WindowSystem& window_system,
                                                           std::shared_ptr<Applet> caller_applet,
@@ -178,8 +204,8 @@ ILibraryAppletCreator::ILibraryAppletCreator(Core::System& system_, std::shared_
       m_window_system{window_system}, m_applet{std::move(applet)} {
     static const FunctionInfo functions[] = {
         {0, D<&ILibraryAppletCreator::CreateLibraryApplet>, "CreateLibraryApplet"},
-        {1, nullptr, "TerminateAllLibraryApplets"},
-        {2, nullptr, "AreAnyLibraryAppletsLeft"},
+        {1, &ILibraryAppletCreator::StubReplyZeroed, "TerminateAllLibraryApplets"},
+        {2, &ILibraryAppletCreator::StubReplyZeroed, "AreAnyLibraryAppletsLeft"},
         {3, D<&ILibraryAppletCreator::CreateLibraryAppletEx>, "CreateLibraryAppletEx"},
         {10, D<&ILibraryAppletCreator::CreateStorage>, "CreateStorage"},
         {11, D<&ILibraryAppletCreator::CreateTransferMemoryStorage>, "CreateTransferMemoryStorage"},
@@ -197,6 +223,7 @@ Result ILibraryAppletCreator::CreateLibraryApplet(
               library_applet_mode);
 
     applet_id = NormalizeAppletId(applet_id);
+
     std::shared_ptr<ILibraryAppletAccessor> library_applet;
     if (ShouldCreateGuestApplet(applet_id)) {
         library_applet =
@@ -224,6 +251,7 @@ Result ILibraryAppletCreator::CreateLibraryAppletEx(
               library_applet_mode, thread_id);
 
     applet_id = NormalizeAppletId(applet_id);
+
     std::shared_ptr<ILibraryAppletAccessor> library_applet;
     if (ShouldCreateGuestApplet(applet_id)) {
         library_applet =

@@ -5,10 +5,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <string>
-#include <set>
 #include <unordered_set>
 #include <fmt/ranges.h>
 #include <array>
@@ -16,6 +15,7 @@
 #include <boost/container/small_vector.hpp>
 
 #include "common/assert.h"
+#include "common/cityhash.h"
 #include "shader_recompiler/frontend/maxwell/control_flow.h"
 #include "shader_recompiler/exception.h"
 #include "shader_recompiler/object_pool.h"
@@ -37,6 +37,17 @@ void ShaderCache::InvalidateRegion(VAddr addr, size_t size) {
     RemovePendingShaders();
 }
 
+void ShaderCache::InvalidateRegions(std::span<const std::pair<DAddr, size_t>> sequences) {
+    if (sequences.empty()) {
+        return;
+    }
+    std::scoped_lock lock{invalidation_mutex};
+    for (const auto& [addr, size] : sequences) {
+        InvalidatePagesInRegion(addr, size);
+    }
+    RemovePendingShaders();
+}
+
 void ShaderCache::OnCacheInvalidation(VAddr addr, size_t size) {
     std::scoped_lock lock{invalidation_mutex};
     InvalidatePagesInRegion(addr, size);
@@ -50,83 +61,21 @@ void ShaderCache::SyncGuestHost() {
 ShaderCache::ShaderCache(Tegra::MaxwellDeviceMemoryManager& device_memory_)
     : device_memory{device_memory_} {}
 
-namespace {
-// EDEN_NX2_MESH_TRACE: once per set of bound programs that includes a rejected native one, every
-// pipeline slot (control byte and program) and the draw that uses them, to tell how task and
-// mesh programs are launched. When it names a folder, the whole 3D register file is saved there
-// too (mesh-<n>.bin), and again at the next draw that works (after-<n>.bin), to diff the state.
-const char* const mesh_trace = std::getenv("EDEN_NX2_MESH_TRACE");
-int mesh_dumps = 0;
-bool mesh_after_pending = false;
-
-void DumpRegisters(const Tegra::Engines::Maxwell3D& maxwell3d, const char* kind) {
-    if (mesh_trace == nullptr || mesh_trace[0] != '/') {
-        return;
+// Task and mesh programs are translated with the mesh registers and the header of the pass-through
+// geometry program (per-primitive outputs), so pipelines are keyed by them too.
+u64 ShaderCache::MeshStateHash() const {
+    using Regs = Tegra::Engines::Maxwell3D::Regs;
+    const auto& regs{maxwell3d->regs};
+    std::array<u32, 3 + 20> state{regs.reg_array[Regs::MeshShaderA], regs.reg_array[Regs::MeshShaderB],
+                                  regs.reg_array[Regs::MeshInitShader]};
+    if (regs.IsShaderConfigEnabled(Regs::ShaderType::Geometry)) {
+        const auto& geometry{regs.pipelines[static_cast<size_t>(Regs::ShaderType::Geometry)]};
+        const GPUVAddr address{(static_cast<u64>(geometry.reserved[0] & 0xff) << 32) |
+                               geometry.reserved[1]};
+        gpu_memory->ReadBlockUnsafe(address, state.data() + 3, 20 * sizeof(u32));
     }
-    const auto path = fmt::format("{}/{}-{}.bin", mesh_trace, kind, mesh_dumps);
-    if (std::FILE* file = std::fopen(path.c_str(), "wb")) {
-        std::fwrite(maxwell3d.regs.reg_array.data(), sizeof(u32), maxwell3d.regs.reg_array.size(), file);
-        std::fclose(file);
-    }
+    return Common::CityHash64(reinterpret_cast<const char*>(state.data()), sizeof(state)) | 1;
 }
-
-void TraceRejectedDraw(Tegra::Engines::Maxwell3D& maxwell3d) {
-    if (mesh_trace == nullptr) {
-        return;
-    }
-    static std::set<std::array<u64, 6>> seen;
-    std::array<u64, 6> programs{};
-    std::string slots;
-    for (size_t i = 0; i < programs.size(); ++i) {
-        const auto& config = maxwell3d.regs.pipelines[i];
-        u32 control{};
-        std::memcpy(&control, &config, sizeof(control));
-        programs[i] = (u64{config.reserved[0] & 0xffU} << 32) | config.reserved[1];
-        slots += fmt::format(" {}:{:x}/{:x}", i, control & 0xff, programs[i]);
-    }
-    if (!seen.insert(programs).second) {
-        return;
-    }
-    const auto& draw = maxwell3d.draw_manager.draw_state;
-    const auto& indirect = maxwell3d.draw_manager.indirect_state;
-    LOG_INFO(HW_GPU,
-             "Mesh trace:{} | topology {} mode {} indexed {} vertices {}+{} indices {}+{} "
-             "instances {}+{} | indirect {:#x} count {:#x} draws {} stride {} indexed {} counted {}",
-             slots, static_cast<u32>(draw.topology), static_cast<u32>(draw.draw_mode),
-             draw.draw_indexed, draw.vertex_buffer.first, draw.vertex_buffer.count,
-             draw.index_buffer.first, draw.index_buffer.count, draw.base_instance,
-             draw.instance_count, indirect.indirect_start_address, indirect.count_start_address,
-             indirect.max_draw_counts, indirect.stride, indirect.is_indexed, indirect.include_count);
-    ++mesh_dumps;
-    DumpRegisters(maxwell3d, "mesh");
-    mesh_after_pending = true;
-}
-
-// Also once per set of task/mesh/pixel programs: their whole 128-byte native headers (Eden reads
-// the first 0x50), to find where the per-primitive outputs are mapped.
-void TraceMeshHeaders(const Tegra::Engines::Maxwell3D& maxwell3d, Tegra::MemoryManager& gpu_memory) {
-    static std::set<std::array<u64, 3>> seen;
-    static constexpr std::array<size_t, 3> slots{1, 3, 5};
-    std::array<u64, 3> programs{};
-    for (size_t i = 0; i < slots.size(); ++i) {
-        if (maxwell3d.regs.IsShaderConfigEnabled(slots[i])) {
-            const auto& config = maxwell3d.regs.pipelines[slots[i]];
-            programs[i] = (u64{config.reserved[0] & 0xffU} << 32) | config.reserved[1];
-        }
-    }
-    if (!seen.insert(programs).second) {
-        return;
-    }
-    for (size_t i = 0; i < slots.size(); ++i) {
-        if (programs[i] != 0) {
-            std::array<u32, 32> header{};
-            gpu_memory.ReadBlockUnsafe(programs[i], header.data(), sizeof(header));
-            LOG_INFO(HW_GPU, "Mesh header: slot {} program {:x}: {:08x}", slots[i], programs[i],
-                     fmt::join(header, " "));
-        }
-    }
-}
-} // Anonymous namespace
 
 bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) try {
     auto& dirty{maxwell3d->dirty.flags};
@@ -137,14 +86,9 @@ bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) try {
 
     const GPUVAddr base_addr{maxwell3d->regs.program_region.Address()};
     const bool native = maxwell3d->GetNativeMacroEngine().native_turing;
+    const bool mesh{native && maxwell3d->regs.IsMeshEnabled()};
     for (size_t index = 0; index < Tegra::Engines::Maxwell3D::Regs::MaxShaderProgram; ++index) {
         if (!maxwell3d->regs.IsShaderConfigEnabled(index)) {
-            unique_hashes[index] = 0;
-            continue;
-        }
-        // A task or mesh program in slot 1 comes with a header-only passthrough geometry program
-        // in slot 4, which the host pipeline leaves out (docs/MESH_SHADING.md)
-        if (native && index == 4 && shader_infos[1] != nullptr && shader_infos[1]->uses_stage_buffer) {
             unique_hashes[index] = 0;
             continue;
         }
@@ -152,6 +96,11 @@ bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) try {
         const auto program{static_cast<Tegra::Engines::Maxwell3D::Regs::ShaderType>(index)};
         if (program == Tegra::Engines::Maxwell3D::Regs::ShaderType::Pixel &&
             !maxwell3d->regs.rasterize_enable) {
+            unique_hashes[index] = 0;
+            continue;
+        }
+        if (mesh && program == Tegra::Engines::Maxwell3D::Regs::ShaderType::Geometry) {
+            // A header without code: the mesh program's environment reads its output map.
             unique_hashes[index] = 0;
             continue;
         }
@@ -168,7 +117,6 @@ bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) try {
         if (!shader_info && native && IsRejected(*cpu_shader_addr)) {
             // A rejected program fails the same way every time it is bound: skip its draws
             // without rethrowing (two C++ throws each time cost ~1-2% of the GPU thread).
-            TraceRejectedDraw(*maxwell3d);
             maxwell3d->GetNativeMacroEngine().native_execution_failed = true;
             last_shaders_valid = false;
             return false;
@@ -176,7 +124,8 @@ bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) try {
         if (!shader_info) {
             const u32 start_address{native ? 0 : shader_config.offset};
             try {
-                // Native programs are lowered while the environment is built.
+                // Native programs are lowered while the environment is built (once: the
+                // ShaderInfo keeps the result for the pipeline's environments).
                 RethrowIfRejected(*cpu_shader_addr);
                 GraphicsEnvironment env{*maxwell3d, *gpu_memory, program, native ? shader_addr : base_addr, start_address};
                 shader_info = MakeShaderInfo(env, *cpu_shader_addr);
@@ -193,20 +142,15 @@ bool ShaderCache::RefreshStages(std::array<u64, 6>& unique_hashes) try {
                     LOG_ERROR(HW_GPU, "Rejected program {:#x} is bound to stage {}: header {:08x}, slot {:08x}",
                               shader_addr, index, fmt::join(header, " "), fmt::join(config, " "));
                 }
-                TraceRejectedDraw(*maxwell3d);
                 throw;
             }
         }
         shader_infos[index] = shader_info;
         unique_hashes[index] = shader_info->unique_hash;
-    }
-    if (mesh_trace != nullptr && native && shader_infos[1] != nullptr &&
-        shader_infos[1]->uses_stage_buffer) {
-        TraceMeshHeaders(*maxwell3d, *gpu_memory);
-    }
-    if (mesh_after_pending && native) {
-        DumpRegisters(*maxwell3d, "after");
-        mesh_after_pending = false;
+        if (mesh && (program == Tegra::Engines::Maxwell3D::Regs::ShaderType::VertexB ||
+                     program == Tegra::Engines::Maxwell3D::Regs::ShaderType::Tessellation)) {
+            unique_hashes[index] ^= MeshStateHash();
+        }
     }
     last_shaders_valid = true;
     return true;
@@ -298,7 +242,8 @@ void ShaderCache::GetGraphicsEnvironments(GraphicsEnvironments& result,
         const GPUVAddr address = native
             ? (static_cast<u64>(config.reserved[0] & 0xff) << 32) | config.reserved[1]
             : base_addr;
-        env = GraphicsEnvironment{*maxwell3d, *gpu_memory, program, address, start_address};
+        env = GraphicsEnvironment{*maxwell3d, *gpu_memory, program, address, start_address,
+                                  shader_infos[index]->lowered_native};
         env.SetCachedSize(shader_infos[index]->size_bytes);
         result.env_ptrs[env_index++] = &env;
     }
@@ -371,10 +316,17 @@ void ShaderCache::RemovePendingShaders() {
     marked_for_removal.clear();
 
     if (!removed_shaders.empty()) {
-        // Remove the given shaders from the cache
-        std::erase_if(storage, [&removed_shaders](const std::unique_ptr<ShaderInfo>& shader) {
-            return std::ranges::find(removed_shaders, shader.get()) != removed_shaders.end();
-        });
+        if (removed_shaders.size() > 16) {
+            std::ranges::sort(removed_shaders, std::less<ShaderInfo*>{});
+            std::erase_if(storage, [&removed_shaders](const std::unique_ptr<ShaderInfo>& shader) {
+                return std::binary_search(removed_shaders.begin(), removed_shaders.end(),
+                                          shader.get(), std::less<ShaderInfo*>{});
+            });
+        } else {
+            std::erase_if(storage, [&removed_shaders](const std::unique_ptr<ShaderInfo>& shader) {
+                return std::ranges::find(removed_shaders, shader.get()) != removed_shaders.end();
+            });
+        }
     }
 }
 
@@ -438,7 +390,7 @@ const ShaderInfo* ShaderCache::MakeShaderInfo(GenericEnvironment& env, VAddr cpu
         info->unique_hash = env.CalculateHash();
         info->size_bytes = env.ReadSizeBytes();
     }
-    info->uses_stage_buffer = env.UsesStageBuffer();
+    info->lowered_native = env.LoweredNative();
     const size_t size_bytes{env.SourceSizeBytes() ? env.SourceSizeBytes() : info->size_bytes};
     const ShaderInfo* const result{info.get()};
     Register(std::move(info), cpu_addr, size_bytes);

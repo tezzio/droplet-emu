@@ -321,20 +321,28 @@ void IREmitter::SetAttributeIndexed(const U32& phys_address, const F32& value, c
     Inst(Opcode::SetAttributeIndexed, phys_address, value, vertex);
 }
 
-U32 IREmitter::ReadStageBuffer(const U32& address, u32 flags) {
-    return Inst<U32>(Opcode::ReadStageBuffer, address, Imm32(flags));
-}
-
-void IREmitter::WriteStageBuffer(const U32& address, const U32& value, u32 flags) {
-    Inst(Opcode::WriteStageBuffer, address, value, Imm32(flags));
-}
-
 F32 IREmitter::GetPatch(Patch patch) {
     return Inst<F32>(Opcode::GetPatch, patch);
 }
 
 void IREmitter::SetPatch(Patch patch, const F32& value) {
     Inst(Opcode::SetPatch, patch, value);
+}
+
+U32 IREmitter::IsbeRead(const U32& address) {
+    return Inst<U32>(Opcode::IsbeRead, address);
+}
+
+void IREmitter::IsbeWriteAttribute(const U32& address, const U32& value) {
+    Inst(Opcode::IsbeWriteAttribute, address, value);
+}
+
+void IREmitter::IsbeWriteMapU8(const U32& address, const U32& value) {
+    Inst(Opcode::IsbeWriteMapU8, address, value);
+}
+
+void IREmitter::IsbeWriteMapU32(const U32& address, const U32& value) {
+    Inst(Opcode::IsbeWriteMapU32, address, value);
 }
 
 void IREmitter::SetFragColor(u32 index, u32 component, const F32& value) {

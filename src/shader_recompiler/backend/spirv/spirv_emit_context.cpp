@@ -479,6 +479,7 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
     DefineCommonTypes(program.info);
     DefineCommonConstants();
     DefineInterfaces(program);
+    DefineMesh(program);
     DefineLocalMemory(program);
     DefineSharedMemory(program);
     DefineSharedMemoryFunctions(program);
@@ -494,7 +495,6 @@ EmitContext::EmitContext(const Profile& profile_, const RuntimeInfo& runtime_inf
     DefineGlobalMemoryFunctions(program.info);
     DefineRescalingInput(program.info);
     DefineRenderArea(program.info);
-    DefineMeshShading(program);
 }
 
 EmitContext::~EmitContext() = default;
@@ -1434,84 +1434,6 @@ void EmitContext::DefineImages(const Info& info, u32& binding, u32& scaling_inde
     }
 }
 
-void EmitContext::DefineMeshShading(const IR::Program& program) {
-    if (stage != Stage::Task && stage != Stage::Mesh) {
-        return;
-    }
-    AddExtension("SPV_EXT_mesh_shader");
-    AddCapability(spv::Capability::MeshShadingEXT);
-    mesh_workgroup_id =
-        DefineVariable(*this, U32[3], spv::BuiltIn::WorkgroupId, spv::StorageClass::Input);
-    mesh_local_invocation_id =
-        DefineVariable(*this, U32[3], spv::BuiltIn::LocalInvocationId, spv::StorageClass::Input);
-    // The task's payload, which its mesh workgroups read; word 1 says how many to launch
-    if (stage == Stage::Task || runtime_info.mesh_has_task) {
-        task_payload = DefineVariable(*this, TypeArray(U32[1], Const(TASK_PAYLOAD_WORDS)),
-                                      std::nullopt, spv::StorageClass::TaskPayloadWorkgroupEXT);
-        task_payload_pointer = TypePointer(spv::StorageClass::TaskPayloadWorkgroupEXT, U32[1]);
-    }
-    mesh_workgroup_pointer = TypePointer(spv::StorageClass::Workgroup, U32[1]);
-    mesh_primitive_count =
-        DefineVariable(*this, U32[1], std::nullopt, spv::StorageClass::Workgroup);
-    if (stage == Stage::Task) {
-        return;
-    }
-    const u32 max_vertices{runtime_info.mesh_max_vertices};
-    const u32 max_primitives{runtime_info.mesh_max_primitives};
-    u32 components{};
-    for (const u8 mask : runtime_info.mesh_output_masks) {
-        components += static_cast<u32>(std::popcount(mask));
-    }
-    mesh_vertex_block_bytes = components * 0x80;
-    for (const u8 mask : runtime_info.mesh_primitive_masks) {
-        mesh_primitive_components += static_cast<u32>(std::popcount(mask));
-    }
-    // Per-primitive values follow the vertex blocks, in blocks of 32 primitives the same way
-    mesh_attribute_words = (Common::DivCeil(max_vertices, 32U) * mesh_vertex_block_bytes +
-                            Common::DivCeil(max_primitives, 32U) *
-                                std::max(mesh_primitive_components, 1U) * 0x80) /
-                           4;
-    mesh_index_byte_count = 4 + max_primitives * 3;
-    const auto workgroup_array{[&](u32 size) {
-        // One spare element at the end takes any write beyond the layout
-        return DefineVariable(*this, TypeArray(U32[1], Const(size + 1)), std::nullopt,
-                              spv::StorageClass::Workgroup);
-    }};
-    mesh_attributes = workgroup_array(mesh_attribute_words);
-    mesh_index_bytes = workgroup_array(mesh_index_byte_count);
-
-    const Id per_vertex{TypeStruct(F32[4])};
-    MemberDecorate(per_vertex, 0U, spv::Decoration::BuiltIn, static_cast<u32>(spv::BuiltIn::Position));
-    Decorate(per_vertex, spv::Decoration::Block);
-    mesh_vertices = DefineVariable(*this, TypeArray(per_vertex, Const(max_vertices)), std::nullopt,
-                                   spv::StorageClass::Output);
-    mesh_output_float_pointer = TypePointer(spv::StorageClass::Output, F32[1]);
-    for (size_t index = 0; index < mesh_generic_outputs.size(); ++index) {
-        if (runtime_info.mesh_output_masks[1 + index] == 0) {
-            continue;
-        }
-        const Id variable{DefineVariable(*this, TypeArray(F32[4], Const(max_vertices)), std::nullopt,
-                                         spv::StorageClass::Output)};
-        Decorate(variable, spv::Decoration::Location, static_cast<u32>(index));
-        Name(variable, fmt::format("out_attr{}", index));
-        mesh_generic_outputs[index] = variable;
-    }
-    for (size_t index = 0; index < mesh_primitive_outputs.size(); ++index) {
-        if (runtime_info.mesh_primitive_masks[index] == 0) {
-            continue;
-        }
-        const Id variable{DefineVariable(*this, TypeArray(F32[4], Const(max_primitives)), std::nullopt,
-                                         spv::StorageClass::Output)};
-        Decorate(variable, spv::Decoration::Location, static_cast<u32>(index));
-        Decorate(variable, spv::Decoration::PerPrimitiveEXT);
-        Name(variable, fmt::format("prim_attr{}", index));
-        mesh_primitive_outputs[index] = variable;
-    }
-    mesh_indices = DefineVariable(*this, TypeArray(U32[3], Const(max_primitives)),
-                                  spv::BuiltIn::PrimitiveTriangleIndicesEXT, spv::StorageClass::Output);
-    mesh_index_pointer = TypePointer(spv::StorageClass::Output, U32[3]);
-}
-
 void EmitContext::DefineInputs(const IR::Program& program) {
     const Info& info{program.info};
     const VaryingState loads{info.loads.mask | info.passthrough.mask};
@@ -1660,12 +1582,6 @@ void EmitContext::DefineInputs(const IR::Program& program) {
         Decorate(id, spv::Decoration::Location, static_cast<u32>(index));
         Name(id, fmt::format("in_attr{}", index));
         input_generics[index] = GetAttributeInfo(*this, input_type, id);
-        if (stage == Stage::Fragment && runtime_info.mesh_primitive_masks[index] != 0) {
-            // Written per primitive by the mesh program (docs/MESH_SHADING.md)
-            AddExtension("SPV_EXT_mesh_shader");
-            AddCapability(spv::Capability::MeshShadingEXT);
-            Decorate(id, spv::Decoration::PerPrimitiveEXT);
-        }
 
         if (info.passthrough.Generic(index) && profile.support_geometry_shader_passthrough) {
             Decorate(id, spv::Decoration::PassthroughNV);
@@ -1675,6 +1591,16 @@ void EmitContext::DefineInputs(const IR::Program& program) {
         }
         const bool is_integer = input_type == AttributeType::SignedInt ||
                                 input_type == AttributeType::UnsignedInt;
+        if (runtime_info.per_primitive_generics.test(index)) {
+            // Written per primitive by a mesh program: constant over the primitive.
+            AddExtension("SPV_EXT_mesh_shader");
+            AddCapability(spv::Capability::MeshShadingEXT);
+            Decorate(id, spv::Decoration::PerPrimitiveEXT);
+            if (is_integer) {
+                Decorate(id, spv::Decoration::Flat);
+            }
+            continue;
+        }
         if (is_integer) {
             Decorate(id, spv::Decoration::Flat);
         } else {
@@ -1703,11 +1629,123 @@ void EmitContext::DefineInputs(const IR::Program& program) {
     }
 }
 
+void EmitContext::DefineMesh(const IR::Program& program) {
+    if (stage != Stage::Task && stage != Stage::Mesh) {
+        return;
+    }
+    AddExtension("SPV_EXT_mesh_shader");
+    AddCapability(spv::Capability::MeshShadingEXT);
+    mesh_info = program.mesh;
+    mesh_threads = program.workgroup_size[0];
+    // The task's output region, which its mesh workgroups read as their input region.
+    const Id payload_type{TypeArray(U32[1], Const(mesh_info.payload_words))};
+    mesh_payload = DefineVariable(*this, payload_type, std::nullopt,
+                                  spv::StorageClass::TaskPayloadWorkgroupEXT);
+    Name(mesh_payload, "task_payload");
+    mesh_payload_u32 = TypePointer(spv::StorageClass::TaskPayloadWorkgroupEXT, U32[1]);
+    if (stage == Stage::Task) {
+        return;
+    }
+    // Output attribute region: groups of 32 vertices, then groups of 32 primitives, one 32-word
+    // line per attribute. The map region keeps one map byte per word.
+    const u32 vertex_lines{static_cast<u32>(mesh_info.vertex_lines.size())};
+    const u32 primitive_lines{static_cast<u32>(mesh_info.primitive_lines.size())};
+    mesh_primitive_base = Common::DivCeil(mesh_info.max_vertices, 32U) * vertex_lines * 32;
+    mesh_attribute_words = (std::max)(
+        mesh_primitive_base + Common::DivCeil(mesh_info.max_primitives, 32U) * primitive_lines * 32,
+        1U);
+    mesh_map_bytes = 4 + 3 * mesh_info.max_primitives;
+    mesh_shared_u32 = TypePointer(spv::StorageClass::Workgroup, U32[1]);
+    mesh_attributes = DefineVariable(*this, TypeArray(U32[1], Const(mesh_attribute_words)),
+                                     std::nullopt, spv::StorageClass::Workgroup);
+    Name(mesh_attributes, "isbe_attributes");
+    mesh_map = DefineVariable(*this, TypeArray(U32[1], Const(mesh_map_bytes)), std::nullopt,
+                              spv::StorageClass::Workgroup);
+    Name(mesh_map, "isbe_map");
+    mesh_primitive_count =
+        DefineVariable(*this, U32[1], std::nullopt, spv::StorageClass::Workgroup);
+    Name(mesh_primitive_count, "isbe_primitive_count");
+
+    const Id vertex_count{Const(mesh_info.max_vertices)};
+    const Id primitive_count{Const(mesh_info.max_primitives)};
+    mesh_primitive_indices =
+        DefineVariable(*this, TypeArray(U32[3], primitive_count),
+                       spv::BuiltIn::PrimitiveTriangleIndicesEXT, spv::StorageClass::Output);
+    std::array<Id, IR::NUM_GENERICS> generics[2]{};
+    Id point_size{}, primitive_layer{}, primitive_viewport{}, primitive_id_output{};
+    const auto per_primitive_builtin = [&](Id& variable, spv::BuiltIn builtin) {
+        if (!Sirit::ValidId(variable)) {
+            variable = DefineVariable(*this, TypeArray(U32[1], primitive_count), builtin,
+                                      spv::StorageClass::Output);
+            Decorate(variable, spv::Decoration::PerPrimitiveEXT);
+        }
+        return MeshLineTarget{variable, ~0U, false};
+    };
+    const auto target = [&](u32 line, bool per_primitive) -> MeshLineTarget {
+        const IR::Attribute attribute{line};
+        if (IR::IsGeneric(attribute)) {
+            const u32 index{IR::GenericAttributeIndex(attribute)};
+            Id& variable{generics[per_primitive][index]};
+            if (!Sirit::ValidId(variable)) {
+                variable = DefineVariable(
+                    *this, TypeArray(F32[4], per_primitive ? primitive_count : vertex_count),
+                    std::nullopt, spv::StorageClass::Output);
+                Decorate(variable, spv::Decoration::Location, index);
+                if (per_primitive) {
+                    Decorate(variable, spv::Decoration::PerPrimitiveEXT);
+                }
+            }
+            return {variable, IR::GenericAttributeElement(attribute), true};
+        }
+        if (per_primitive) {
+            switch (attribute) {
+            case IR::Attribute::PrimitiveId:
+                return per_primitive_builtin(primitive_id_output, spv::BuiltIn::PrimitiveId);
+            case IR::Attribute::Layer:
+                return per_primitive_builtin(primitive_layer, spv::BuiltIn::Layer);
+            case IR::Attribute::ViewportIndex:
+                return per_primitive_builtin(primitive_viewport, spv::BuiltIn::ViewportIndex);
+            default:
+                return {};
+            }
+        }
+        switch (attribute) {
+        case IR::Attribute::PositionX:
+        case IR::Attribute::PositionY:
+        case IR::Attribute::PositionZ:
+        case IR::Attribute::PositionW:
+            if (!Sirit::ValidId(output_position)) {
+                output_position = DefineVariable(*this, TypeArray(F32[4], vertex_count),
+                                                 spv::BuiltIn::Position, spv::StorageClass::Output);
+            }
+            return {output_position,
+                    static_cast<u32>(attribute) - static_cast<u32>(IR::Attribute::PositionX), true};
+        case IR::Attribute::PointSize:
+            if (!Sirit::ValidId(point_size)) {
+                point_size = DefineVariable(*this, TypeArray(F32[1], vertex_count),
+                                            spv::BuiltIn::PointSize, spv::StorageClass::Output);
+            }
+            return {point_size, ~0U, true};
+        default:
+            return {}; // per-primitive values in vertex lines have no vertex output
+        }
+    };
+    for (const u32 line : mesh_info.vertex_lines) {
+        mesh_vertex_targets.push_back(target(line, false));
+    }
+    for (const u32 line : mesh_info.primitive_lines) {
+        mesh_primitive_targets.push_back(target(line, true));
+    }
+}
+
 void EmitContext::DefineOutputs(const IR::Program& program) {
     const Info& info{program.info};
+    if (stage == Stage::Task || stage == Stage::Mesh) {
+        return; // DefineMesh
+    }
     const std::optional<u32> invocations{program.invocations};
-    if ((runtime_info.convert_depth_mode && stage != Stage::Mesh) ||
-        info.stores.AnyComponent(IR::Attribute::PositionX) || stage == Stage::VertexB) {
+    if (runtime_info.convert_depth_mode || info.stores.AnyComponent(IR::Attribute::PositionX) ||
+        stage == Stage::VertexB) {
         output_position = DefineOutput(*this, F32[4], invocations, spv::BuiltIn::Position);
     }
     if (info.stores[IR::Attribute::PointSize] || runtime_info.fixed_state_point_size) {

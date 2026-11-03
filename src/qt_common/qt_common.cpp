@@ -57,6 +57,7 @@ std::unique_ptr<EmuThread> emu_thread = nullptr;
 
 // Droplet: no encrypted formats (nca, nsp, nsz, xci, xcz).
 const QStringList supported_file_extensions = {QStringLiteral("nro"), QStringLiteral("nso"),
+                                               QStringLiteral("nup"),
                                                QStringLiteral("kip")};
 
 Core::Frontend::WindowSystemType GetWindowSystemType() {

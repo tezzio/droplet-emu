@@ -78,6 +78,7 @@ void BlitScreen::SetWindowAdaptPass(const Device& device) {
         window_adapt = MakeMmpx(device, swapchain_view_format);
         break;
     case Settings::ScalingFilter::Fsr:
+    case Settings::ScalingFilter::Fsr3:
     case Settings::ScalingFilter::Sgsr:
     case Settings::ScalingFilter::SgsrEdge:
     case Settings::ScalingFilter::Bilinear:
@@ -157,15 +158,16 @@ void BlitScreen::DrawToFrame(const Device& device, RasterizerVulkan& rasterizer,
     }
 
 #ifdef OUNCE2DN_PLAYTEST
-    constexpr bool show_watermark = true; // playtest releases can't hide it
-#else
-    const bool show_watermark = Settings::values.show_watermark.GetValue();
-#endif
-    if (show_watermark && !watermark) {
+    // Playtest releases always carry their notice; other builds have no watermark
+    if (!watermark) {
         watermark = std::make_unique<Watermark>(device, memory_allocator, scheduler);
     }
+    const Watermark* const notice = watermark.get();
+#else
+    const Watermark* const notice = nullptr;
+#endif
     window_adapt->Draw(device, rasterizer, scheduler, image_index, layers, framebuffers, layout, frame,
-                       show_watermark ? watermark.get() : nullptr);
+                       notice);
 
     if (++image_index >= image_count) {
         image_index = 0;

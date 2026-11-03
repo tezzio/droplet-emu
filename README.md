@@ -2,9 +2,10 @@
 
 Droplet is an experimental Nintendo Switch 2 emulator for Linux and Windows. It is a modified version
 of [eden-nx2](https://git.eden-emu.dev/Takoroka/eden-nx2), which brings Switch 2 support to the
-[Eden](https://git.eden-emu.dev/eden-emu/eden) emulator. Work so far has focused on Splatoon Raiders
-and Mario Kart World, including their online and LAN modes. See [CREDITS.md](CREDITS.md) for everyone
-whose work Droplet builds on.
+[Eden](https://git.eden-emu.dev/eden-emu/eden) emulator, and it includes the work of
+[Eglantine](https://github.com/Djihads80/Eglantine), another emulator built on eden-nx2. Work so far has
+focused on Splatoon Raiders and Mario Kart World, including their online and LAN modes. See
+[CREDITS.md](CREDITS.md) for everyone whose work Droplet builds on.
 
 ## Legal notice
 
@@ -67,12 +68,11 @@ be that simple too.
 
 ## Running games
 
-Droplet runs decrypted games from their folders. Choose **File > Open Game Folder** (Ctrl+O), or
-the **Open Game Folder** button under the game list, and pick the game's folder: the one with its
-`exefs` and `romfs` folders inside. Its `exefs` folder works too, and so does dropping the folder
-onto Droplet's window or giving it to `droplet-cli` as the game's path. To keep your games in the
-list, add the folder that holds them (double-click the empty list, or use **Add New Game
-Directory** in the list); Droplet finds every game folder inside it.
+Droplet runs decrypted games from their folders. Choose **File > Open Game Folder** (Ctrl+O) and
+pick the game's folder: the one with its `exefs` and `romfs` folders inside. Its `exefs` folder works
+too, and so does dropping the folder onto Droplet's window or giving it to `droplet-cli` as the
+game's path. To keep your games in the list, add the folder that holds them (double-click the empty
+list, or use **Add New Game Directory** in the list); Droplet finds every game folder inside it.
 
 ## Playing together
 
@@ -92,6 +92,8 @@ Directory** in the list); Droplet finds every game folder inside it.
 - **Splatoon Raiders:** now and then the top of the sky turns black when the game loads into the
   beach, and stays black for the rest of the session. It doesn't happen every time, and the cause
   isn't known yet.
+- **NUP archives:** games packed with Convert to NUP run slower than from their folders (Splatoon
+  Raiders: 25-30 fps instead of 60), so keep playing from folders for now.
 
 ## Building
 

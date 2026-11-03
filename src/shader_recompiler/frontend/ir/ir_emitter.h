@@ -85,12 +85,13 @@ public:
     [[nodiscard]] F32 GetAttributeIndexed(const U32& phys_address, const U32& vertex);
     void SetAttributeIndexed(const U32& phys_address, const F32& value, const U32& vertex);
 
-    // Switch 2 task and mesh programs' stage buffer (ISBERD/ISBEWR); flags: StageBufferFlags
-    [[nodiscard]] U32 ReadStageBuffer(const U32& address, u32 flags);
-    void WriteStageBuffer(const U32& address, const U32& value, u32 flags);
-
     [[nodiscard]] F32 GetPatch(Patch patch);
     void SetPatch(Patch patch, const F32& value);
+
+    [[nodiscard]] U32 IsbeRead(const U32& address);
+    void IsbeWriteAttribute(const U32& address, const U32& value);
+    void IsbeWriteMapU8(const U32& address, const U32& value);
+    void IsbeWriteMapU32(const U32& address, const U32& value);
 
     void SetFragColor(u32 index, u32 component, const F32& value);
     void SetSampleMask(const U32& value);

@@ -59,11 +59,14 @@ Id EmitGetAttributeU32(EmitContext& ctx, IR::Attribute attr, Id vertex);
 void EmitSetAttribute(EmitContext& ctx, IR::Attribute attr, Id value, Id vertex);
 Id EmitGetAttributeIndexed(EmitContext& ctx, Id offset, Id vertex);
 void EmitSetAttributeIndexed(EmitContext& ctx, Id offset, Id value, Id vertex);
-Id EmitReadStageBuffer(EmitContext& ctx, const IR::Value& address, const IR::Value& flags);
-void EmitWriteStageBuffer(EmitContext& ctx, const IR::Value& address, Id value,
-                          const IR::Value& flags);
 Id EmitGetPatch(EmitContext& ctx, IR::Patch patch);
 void EmitSetPatch(EmitContext& ctx, IR::Patch patch, Id value);
+Id EmitIsbeRead(EmitContext& ctx, Id address);
+void EmitIsbeWriteAttribute(EmitContext& ctx, Id address, Id value);
+void EmitIsbeWriteMapU8(EmitContext& ctx, Id address, Id value);
+void EmitIsbeWriteMapU32(EmitContext& ctx, const IR::Value& address, Id value);
+void EmitMeshPrologue(EmitContext& ctx);
+void EmitMeshEpilogue(EmitContext& ctx);
 void EmitSetFragColor(EmitContext& ctx, u32 index, u32 component, Id value);
 void EmitSetSampleMask(EmitContext& ctx, Id value);
 void EmitSetFragDepth(EmitContext& ctx, Id value);

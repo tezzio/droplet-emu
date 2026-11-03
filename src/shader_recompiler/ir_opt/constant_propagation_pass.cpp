@@ -16,6 +16,7 @@
 #include "shader_recompiler/frontend/ir/modifiers.h"
 #include "shader_recompiler/frontend/ir/value.h"
 #include "shader_recompiler/ir_opt/passes.h"
+#include "shader_recompiler/ir_opt/predicate_mask.h"
 
 namespace Shader::Optimization {
 namespace {
@@ -953,6 +954,37 @@ void FoldDriverConstBuffer(Environment& env, IR::Block& block, IR::Inst& inst, u
     }
 }
 
+void FoldSMax32(IR::Block& block, IR::Inst& inst) {
+    // guest shaders normalize predicate masks with max(x, -x): it is 1 for -1 and 1, and 0 for
+    // 0. NVIDIA's compiler miscompiles the max form which crashes with a vkDeviceLost
+    for (size_t index = 0; index < 2; ++index) {
+        const IR::Value value{inst.Arg(index).Resolve()};
+        const IR::Inst* const negation{inst.Arg(1 - index).TryInstRecursive()};
+        if (!negation || negation->GetOpcode() != IR::Opcode::INeg32 ||
+            negation->Arg(0).Resolve() != value) {
+            continue;
+        }
+        IR::IREmitter ir{block, IR::Block::InstructionList::s_iterator_to(inst)};
+        const IR::Inst* const select{value.TryInstRecursive()};
+        if (select && select->GetOpcode() == IR::Opcode::SelectU32 &&
+            IsMaskConstant(select->Arg(1).Resolve()) &&
+            IsMaskConstant(select->Arg(2).Resolve())) {
+            // absolute value on both arms
+            const IR::Value true_value{select->Arg(1).Resolve()};
+            const IR::Value false_value{select->Arg(2).Resolve()};
+            inst.ReplaceUsesWith(ir.Select(IR::U1{select->Arg(0)},
+                                           ir.Imm32(true_value.U32() != 0 ? 1U : 0U),
+                                           ir.Imm32(false_value.U32() != 0 ? 1U : 0U)));
+            return;
+        }
+        // mask merged by predicated moves (phi of -s and 1 - s) is still -1, 0 or 1 when the
+        // it can be proven it, and max(x, -x) of such a mask is exactly x & 1.
+        if (MaskValues(value) != MaskUnknown) {
+            inst.ReplaceUsesWith(ir.BitwiseAnd(IR::U32{value}, ir.Imm32(1)));
+            return;
+        }
+    }
+}
 void ConstantPropagation(Environment& env, IR::Block& block, IR::Inst& inst) {
     switch (inst.GetOpcode()) {
     case IR::Opcode::GetRegister:
@@ -963,6 +995,8 @@ void ConstantPropagation(Environment& env, IR::Block& block, IR::Inst& inst) {
         return FoldAdd<u32>(block, inst);
     case IR::Opcode::ISub32:
         return FoldISub32(inst);
+    case IR::Opcode::SMax32:
+        return FoldSMax32(block, inst);
     case IR::Opcode::IMul32:
         FoldWhenAllImmediates(inst, [](u32 a, u32 b) { return a * b; });
         return;

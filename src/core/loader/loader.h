@@ -41,6 +41,7 @@ enum class FileType {
     NSO,
     NRO,
     KIP,
+    NUP,
     DeconstructedRomDirectory,
 };
 
@@ -50,6 +51,14 @@ enum class FileType {
  * @return FileType of file
  */
 FileType IdentifyFile(FileSys::VirtualFile file);
+
+/**
+ * Whether a container file holds a program that boots. Droplet: only NUP containers of decrypted
+ * dumps (a base package, or a standalone update with a complete tree); the encrypted NSP/XCI
+ * containers don't load.
+ */
+bool IsBootableGameContainer(FileSys::VirtualFile file, FileType type = FileType::Unknown,
+                             u64 program_id = 0, std::size_t program_index = 0);
 
 /**
  * Guess the type of a bootable file from its name
@@ -134,6 +143,8 @@ enum class ResultStatus : u16 {
     ErrorINITooManyKIPs,
     ErrorIntegrityVerificationNotImplemented,
     ErrorIntegrityVerificationFailed,
+    ErrorNUPBadFormat,
+    ErrorNUPNoBasePackage,
 };
 
 std::string GetResultStatusString(ResultStatus status);
@@ -303,6 +314,15 @@ public:
     virtual ResultStatus ReadControlData(FileSys::NACP& control) {
         return ResultStatus::ErrorNotImplemented;
     }
+
+    /**
+     * Get the application's display version ("1.8.0"), from its control data by default
+     *
+     * @param[out] version Reference to store the display version into
+     *
+     * @return ResultStatus result of function
+     */
+    virtual ResultStatus ReadDisplayVersion(std::string& version);
 
     /**
      * Get the RomFS of the manual of the application
