@@ -768,11 +768,16 @@ std::variant<std::vector<AddrInfo>, GetAddrInfoError> GetAddressInfo(
 std::pair<s32, Errno> Poll(std::vector<PollFD>& pollfds, s32 timeout) {
     // Sockets without a host descriptor (a room's proxy sockets) answer for themselves, between
     // short host polls while the guest waits; the host polls the rest.
+#ifdef _WIN32
+    constexpr SOCKET no_host_fd = INVALID_SOCKET; // a macro on Windows
+#else
+    constexpr SocketBase::SOCKET no_host_fd = SocketBase::INVALID_SOCKET;
+#endif
     std::vector<size_t> on_host;
     std::vector<WSAPOLLFD> host_pollfds;
     for (size_t i = 0; i < pollfds.size(); ++i) {
         pollfds[i].revents = PollEvents{};
-        if (pollfds[i].socket->GetFD() != SocketBase::INVALID_SOCKET) {
+        if (pollfds[i].socket->GetFD() != no_host_fd) {
             on_host.push_back(i);
             host_pollfds.push_back(WSAPOLLFD{
                 .fd = pollfds[i].socket->GetFD(),
@@ -793,7 +798,7 @@ std::pair<s32, Errno> Poll(std::vector<PollFD>& pollfds, s32 timeout) {
     while (true) {
         s32 ready = 0;
         for (auto& pollfd : pollfds) {
-            if (pollfd.socket->GetFD() == SocketBase::INVALID_SOCKET) {
+            if (pollfd.socket->GetFD() == no_host_fd) {
                 pollfd.revents = pollfd.socket->ReadinessWithoutHost(pollfd.events);
                 ready += pollfd.revents != PollEvents{} ? 1 : 0;
             }
