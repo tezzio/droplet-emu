@@ -494,7 +494,8 @@ MainWindow::MainWindow(bool has_broken_vulkan)
     // each step at <ms> after startup. Kinds: action (a QAction's object name), set
     // (<widget>=<text> for a line edit or <widget>=#<index> for a combo box), click (a button's
     // object name) and clicktext (a button's text, e.g. in a message box), plus select, tab,
-    // notice:online-off and grab below. Widgets are looked up in every top-level window.
+    // notice:online-off, notice:missing-ca and grab below. Widgets are looked up in every
+    // top-level window.
     if (const char* test_steps = std::getenv("EDEN_NX2_QT_STEPS")) {
         for (const QString& step : QString::fromUtf8(test_steps).split(QLatin1Char(';'))) {
             const QStringList parts = step.split(QLatin1Char(':'));
@@ -572,6 +573,10 @@ MainWindow::MainWindow(bool has_broken_vulkan)
                 } else if (kind == QStringLiteral("notice") && arg == QStringLiteral("online-off")) {
                     // notice:online-off: the online play notice, without a game going online
                     ShowOnlineOffNotice();
+                    done = true;
+                } else if (kind == QStringLiteral("notice") && arg == QStringLiteral("missing-ca")) {
+                    // notice:missing-ca: the missing server certificate notice
+                    ShowMissingCaNotice();
                     done = true;
                 } else if (kind == QStringLiteral("grab")) {
                     // grab:<file.png>: the front window as an image (works with the offscreen
@@ -2131,6 +2136,8 @@ void MainWindow::BootGame(const QString& filename, Service::AM::FrontendAppletPa
     status_bar_update_timer.start(500);
     online_off_baseline = Service::Sockets::OnlineRedirect::online_off_attempts.load();
     online_notice_shown = false;
+    missing_ca_baseline = Service::Sockets::OnlineRedirect::missing_ca_attempts.load();
+    missing_ca_notice_shown = false;
     renderer_status_button->setDisabled(true);
     refresh_button->setDisabled(true);
     SetFPSSuffix();
@@ -4201,6 +4208,19 @@ void MainWindow::ShowOnlineOffNotice() {
     box->show();
 }
 
+void MainWindow::ShowMissingCaNotice() {
+    auto* box = new QMessageBox(
+        QMessageBox::Information, tr("Server certificate missing"),
+        tr("The game tried to go online, but Droplet couldn't get the online server's "
+           "certificate, so the game can't trust the server.\n\n"
+           "Check the server address in Multiplayer > Online Play Settings. If the server is "
+           "up but older, pick its certificate there (ca.der, from its status page), then restart "
+           "the game."),
+        QMessageBox::Ok, this);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+    box->show();
+}
+
 void MainWindow::UpdateStatusBar() {
     if (QtCommon::emu_thread == nullptr || !QtCommon::system->IsPoweredOn()) {
         status_bar_update_timer.stop();
@@ -4211,6 +4231,11 @@ void MainWindow::UpdateStatusBar() {
         Service::Sockets::OnlineRedirect::online_off_attempts.load() != online_off_baseline) {
         online_notice_shown = true;
         ShowOnlineOffNotice();
+    }
+    if (!missing_ca_notice_shown &&
+        Service::Sockets::OnlineRedirect::missing_ca_attempts.load() != missing_ca_baseline) {
+        missing_ca_notice_shown = true;
+        ShowMissingCaNotice();
     }
 
     if (Settings::values.tas_enable)

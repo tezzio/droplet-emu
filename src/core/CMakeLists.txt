@@ -1070,6 +1070,8 @@ add_library(core STATIC
     hle/service/sockets/bsd.h
     hle/service/sockets/nsd.cpp
     hle/service/sockets/nsd.h
+    hle/service/sockets/online_friends.cpp
+    hle/service/sockets/online_friends.h
     hle/service/sockets/online_profile.cpp
     hle/service/sockets/online_profile.h
     hle/service/sockets/sfdnsres.cpp

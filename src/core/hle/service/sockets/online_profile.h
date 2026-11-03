@@ -27,6 +27,8 @@ struct Profile {
 };
 
 std::filesystem::path ProfilesDir();
+// The certificate Droplet got from this server (online_friends.cpp), next to its profile.
+std::filesystem::path SavedServerCa(const std::string& server);
 
 // This server's profile. When it has none: nullopt, or with `create` a new one. The first profile
 // takes over the friend code that emulator folders had before profiles (<data folder>/online/

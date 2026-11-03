@@ -5,12 +5,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "common/alignment.h"
+#include "common/fs/fs_util.h"
+#include "common/fs/path_util.h"
 #include "core/core.h"
 #include "core/file_sys/content_archive.h"
 #include "core/file_sys/nca_metadata.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/file_sys/romfs.h"
 #include "core/hle/service/filesystem/filesystem.h"
+#include "core/hle/service/sockets/online_friends.h"
 #include "core/hle/service/sockets/online_redirect.h"
 #include "core/hle/service/ssl/cert_store.h"
 
@@ -37,7 +40,7 @@ static std::vector<u8> LoadOnlineCa(const std::string& path) {
     if (path.empty()) {
         return {};
     }
-    std::ifstream file(path, std::ios::binary);
+    std::ifstream file(std::filesystem::path{Common::FS::ToU8String(path)}, std::ios::binary);
     const std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
     const size_t begin = text.find("-----BEGIN CERTIFICATE-----");
     if (begin == std::string::npos) {
@@ -95,6 +98,7 @@ CertStore::CertStore(Core::System& system) {
         auto der = built_in.empty() ? LoadOnlineCa(ca) : std::move(built_in);
         if (der.empty()) {
             LOG_CRITICAL(Service_SSL, "Online server CA {} holds no certificate", ca);
+            m_online_ca_missing = true;
         } else {
             LOG_WARNING(Service_SSL, "Using the private server CA ({} bytes) as the built-in CA",
                         der.size());
@@ -104,6 +108,9 @@ CertStore::CertStore(Core::System& system) {
         }
         return;
     }
+    // Only the console's own certificate data is left, which no private server's certificate
+    // comes from
+    m_online_ca_missing = true;
 
     auto& fsc = system.GetFileSystemController();
 
@@ -180,8 +187,42 @@ void CertStore::ForEachCertificate(std::span<const CaCertificateId> certificate_
     }
 }
 
+// The game is setting up a secure connection. With online play on and no certificate for the
+// server yet, get it from the server (online_friends.cpp), at most every 10 s while it can't.
+void CertStore::EnsureOnlineCa() {
+    std::scoped_lock lock{m_online_ca_mutex};
+    if (!m_online_ca_missing) {
+        return;
+    }
+    const std::string server = Sockets::OnlineRedirect::ServerAddress();
+    if (server.empty()) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now >= m_next_ca_fetch) {
+        m_next_ca_fetch = now + std::chrono::seconds(10);
+        const std::string error = Sockets::OnlineRedirect::FetchServerCa(server);
+        auto der = error.empty() ? LoadOnlineCa(Common::FS::PathToUTF8String(
+                                       Sockets::OnlineRedirect::SavedServerCa(server)))
+                                 : std::vector<u8>{};
+        if (!der.empty()) {
+            LOG_WARNING(Service_SSL, "Got the private server's CA from {} ({} bytes)", server,
+                        der.size());
+            m_certs[CaCertificateId::NintendoCAG3] =
+                Certificate{.status = TrustedCertStatus::EnabledTrusted, .der_data = std::move(der)};
+            m_online_ca_missing = false;
+            return;
+        }
+        LOG_WARNING(Service_SSL, "Could not get the private server's CA from {}: {}", server,
+                    error.empty() ? "it holds no certificate" : error);
+    }
+    Sockets::OnlineRedirect::NoteMissingCaAttempt();
+}
+
 Result CertStore::GetCertificates(u32* out_num_entries, std::span<u8> out_data,
                                   std::span<const CaCertificateId> certificate_ids) {
+    EnsureOnlineCa();
+
     // Ensure the buffer is large enough to hold the output.
     u32 required_size;
     R_TRY(this->GetCertificateBufSize(std::addressof(required_size), out_num_entries,
@@ -228,6 +269,8 @@ Result CertStore::GetCertificates(u32* out_num_entries, std::span<u8> out_data,
 
 Result CertStore::GetCertificateBufSize(u32* out_size, u32* out_num_entries,
                                         std::span<const CaCertificateId> certificate_ids) {
+    EnsureOnlineCa();
+
     // Output size is at least the size of the terminator entry.
     *out_size = sizeof(BuiltInCertificateInfo);
     *out_num_entries = 0;

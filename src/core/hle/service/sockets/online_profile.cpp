@@ -36,6 +36,14 @@ std::filesystem::path ProfilePath(const std::string& server) {
     return ProfilesDir() / (ProfileKey(server) + ".txt");
 }
 
+} // namespace
+
+std::filesystem::path SavedServerCa(const std::string& server) {
+    return ProfilesDir() / (ProfileKey(server) + ".ca.der");
+}
+
+namespace {
+
 std::string NewCode() {
     std::random_device device;
     std::uniform_int_distribution<unsigned long long> digits(1, 999'999'999'999ULL);

@@ -34,7 +34,9 @@
 //       server (connection-quality reports, UDP 34343; g<id>.<env>.p.srv.nintendo.net).
 //   EDEN_NX2_ONLINE_CA=<file>  DER or PEM certificate that the ssl service hands out as the
 //       system's built-in CA (see ssl/cert_store.cpp), so the game trusts the private server.
-//       Without one, <data folder>/online/ca.der (or ca.pem) is used if it exists.
+//       Without one, the certificate Droplet got from the server before (online_friends.cpp) is
+//       used, else <data folder>/online/ca.der (or ca.pem); without any, the ssl service gets it
+//       from the server when a game first goes online.
 //   EDEN_NX2_ONLINE_FRIENDS=<code>,...  friend codes to add for this run (scripts and tests).
 // Each server gets its own friend code, secret and friend list (online_profile.h), sent to the
 // server as the account's ID token at login.
@@ -51,6 +53,21 @@ inline void NoteOnlineOffAttempt() {
     if (online_off_attempts.fetch_add(1, std::memory_order_relaxed) == 0) {
         LOG_WARNING(Network, "A game tried to go online, but online play is off: turn on \"Play "
                              "online on a private server\" in Configure > System > Network");
+    }
+}
+
+// How often a game set up a secure connection with a server set but without its certificate,
+// which Droplet couldn't get from the server either (ssl/cert_store.cpp): the game can't trust
+// the server and stops with an error (Mario Kart World: 2321-4992). The windowed app tells the
+// player what to check.
+inline std::atomic<u32> missing_ca_attempts{0};
+
+inline void NoteMissingCaAttempt() {
+    if (missing_ca_attempts.fetch_add(1, std::memory_order_relaxed) == 0) {
+        LOG_WARNING(Network, "A game tried to go online, but Droplet couldn't get the server's "
+                             "certificate: check the server address, or pick the certificate "
+                             "(ca.der, from the server's status page) in Multiplayer > Online Play "
+                             "Settings");
     }
 }
 
@@ -82,10 +99,16 @@ inline std::string ServerCa() {
     // and turning online play on mid-game must find the server's certificate there.
     std::string path = FromEnvOr("EDEN_NX2_ONLINE_CA", Settings::values.online_server_ca.GetValue());
     if (path.empty()) {
-        for (const char* name : {"ca.der", "ca.pem"}) {
+        const std::string server =
+            FromEnvOr("EDEN_NX2_ONLINE_SERVER", Settings::values.online_server.GetValue());
+        std::vector<std::filesystem::path> found{OnlineDir() / "ca.der", OnlineDir() / "ca.pem"};
+        if (!server.empty()) {
+            found.insert(found.begin(), SavedServerCa(server));
+        }
+        for (const auto& file : found) {
             std::error_code ec;
-            if (std::filesystem::exists(OnlineDir() / name, ec)) {
-                return (OnlineDir() / name).string();
+            if (std::filesystem::exists(file, ec)) {
+                return Common::FS::PathToUTF8String(file);
             }
         }
     }

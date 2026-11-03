@@ -73,13 +73,38 @@
          </widget>
         </item>
         <item row="2" column="0">
+         <widget class="QLabel" name="online_server_ca_label">
+          <property name="text">
+           <string>Server certificate</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="1">
+         <layout class="QHBoxLayout" name="online_server_ca_row">
+          <item>
+           <widget class="QLineEdit" name="online_server_ca">
+            <property name="placeholderText">
+             <string>ca.der, from the server's status page</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="choose_server_ca">
+            <property name="text">
+             <string>Browse…</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="3" column="0">
          <widget class="QLabel" name="friend_code_label">
           <property name="text">
            <string>Your friend code</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="1">
+        <item row="3" column="1">
          <layout class="QHBoxLayout" name="friend_code_row">
           <item>
            <widget class="QLabel" name="friend_code">
@@ -113,7 +138,7 @@
           </item>
          </layout>
         </item>
-        <item row="3" column="0">
+        <item row="4" column="0">
          <widget class="QLabel" name="online_friends_label">
           <property name="text">
            <string>Friends</string>
@@ -123,7 +148,7 @@
           </property>
          </widget>
         </item>
-        <item row="3" column="1">
+        <item row="4" column="1">
          <widget class="QListWidget" name="online_friends">
           <property name="maximumSize">
            <size>
@@ -136,7 +161,44 @@
           </property>
          </widget>
         </item>
-        <item row="4" column="1">
+        <item row="5" column="1">
+         <layout class="QHBoxLayout" name="friend_request_row">
+          <item>
+           <widget class="QPushButton" name="accept_friend">
+            <property name="toolTip">
+             <string>Accept the selected friend requests</string>
+            </property>
+            <property name="text">
+             <string>Accept</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="decline_friend">
+            <property name="toolTip">
+             <string>Decline the selected friend requests</string>
+            </property>
+            <property name="text">
+             <string>Decline</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="friends_status">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+              <horstretch>1</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item row="6" column="1">
          <layout class="QHBoxLayout" name="add_friend_row">
           <item>
            <widget class="QLineEdit" name="new_friend">
@@ -147,6 +209,9 @@
           </item>
           <item>
            <widget class="QPushButton" name="add_friend">
+            <property name="toolTip">
+             <string>Send a friend request to this code</string>
+            </property>
             <property name="text">
              <string>Add</string>
             </property>
@@ -161,7 +226,7 @@
           </item>
          </layout>
         </item>
-        <item row="5" column="1">
+        <item row="7" column="1">
          <layout class="QHBoxLayout" name="profile_row">
           <item>
            <widget class="QPushButton" name="backup_profile">
@@ -186,10 +251,10 @@
           </item>
          </layout>
         </item>
-        <item row="6" column="0" colspan="2">
+        <item row="8" column="0" colspan="2">
          <widget class="QLabel" name="online_note">
           <property name="text">
-           <string>Online play only contacts this server, never Nintendo's. Each server gives you a friend code of your own, which new emulator versions keep; back it up to move it to another PC. You and a friend see each other's rooms once you have both added each other's codes. In a game, other players can see your IP address, as on a console.</string>
+           <string>Online play only contacts this server, never Nintendo's. Its certificate lets games trust it; a game reads it when it starts. Each server gives you a friend code of your own, which new emulator versions keep; back it up to move it to another PC. Adding a friend's code sends them a friend request; once they accept it, you see each other's rooms. In a game, other players can see your IP address, as on a console.</string>
           </property>
           <property name="wordWrap">
            <bool>true</bool>

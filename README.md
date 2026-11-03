@@ -78,9 +78,13 @@ list, or use **Add New Game Directory** in the list); Droplet finds every game f
 
 - **Online play, emulators only.** Games that use Nintendo's NPLN online platform can play on a
   private [Reservoir](https://gitlab.com/seighttt/droplet/-/tree/server) server: sign-in, friend
-  codes (`SW-xxxx-xxxx-xxxx`, which you can change), friends, matchmaking, rooms and room IDs. In
-  Multiplayer > Online Play Settings, turn online play on, enter the server's address and pick its
-  certificate (`ca.der`, from the server's status page). Nothing ever reaches Nintendo's servers.
+  codes (`SW-xxxx-xxxx-xxxx`, which you can change), friend requests, matchmaking, rooms and room
+  IDs. In Multiplayer > Online Play Settings, turn online play on and enter the server's address
+  (for example `reservoir.example.org:8443`). Droplet fetches the server's certificate by itself;
+  for an older server, pick it there (`ca.der`, from the server's status page). To add a friend,
+  enter their friend code: they get a friend request to accept or decline on the same page. If a
+  game can't get the server's certificate, it shows an error (2321-4992 in Mario Kart World) and
+  Droplet says what to check. Nothing ever reaches Nintendo's servers.
 - **LAN play.** Mario Kart World has a hidden LAN mode: on the main menu, highlight Wireless Play, hold
   L and R and click the left stick, and it becomes LAN Play. Players on the same network find each
   other's rooms. Emulators far apart can share one through an emulator room: one player hosts it with

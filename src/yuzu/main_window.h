@@ -446,6 +446,7 @@ private:
     void UpdateVolumeUI();
     void UpdateStatusBar();
     void ShowOnlineOffNotice();
+    void ShowMissingCaNotice();
     void UpdateGPUAccuracyButton();
     void UpdateStatusButtons();
     void UpdateUISettings();
@@ -529,6 +530,9 @@ private:
     // started (OnlineRedirect::online_off_attempts), and whether this game showed it already
     u32 online_off_baseline = 0;
     bool online_notice_shown = false;
+    // The same for a missing server certificate (OnlineRedirect::missing_ca_attempts)
+    u32 missing_ca_baseline = 0;
+    bool missing_ca_notice_shown = false;
     bool configure_network_first = false; // the next OnConfigure opens on System > Network
 
     // Stores what suffix to add to the FPS counter, e.g. Unlocked.
